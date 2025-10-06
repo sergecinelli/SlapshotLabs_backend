@@ -21,6 +21,17 @@ class Division(models.Model):
     class Meta:
         db_table = "divisions"
 
+class Season(models.Model):
+
+    name = models.CharField(max_length=11)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        db_table = "seasons"
+
+
 class Team(models.Model):
 
     age_group = models.CharField(max_length=3)
@@ -39,7 +50,7 @@ class Team(models.Model):
 class TeamSeason(models.Model):
 
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
-    season = models.IntegerField()
+    season = models.ForeignKey(Season, on_delete=models.RESTRICT)
 
     games_played = models.IntegerField()
     """Games played in the season."""
@@ -114,7 +125,7 @@ class Goalie(models.Model):
 class GoalieTransaction(models.Model):
 
     goalie = models.ForeignKey(Goalie, on_delete=models.CASCADE)
-    season = models.IntegerField()
+    season = models.ForeignKey(Season, on_delete=models.RESTRICT)
     date = models.DateField()
     team = models.ForeignKey(Team, on_delete=models.RESTRICT)
     number = models.IntegerField()
@@ -178,7 +189,7 @@ class Player(models.Model):
 class PlayerTransaction(models.Model):
 
     player = models.ForeignKey(Player, on_delete=models.CASCADE)
-    season = models.IntegerField()
+    season = models.ForeignKey(Season, on_delete=models.RESTRICT)
     date = models.DateField()
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
     number = models.IntegerField()
