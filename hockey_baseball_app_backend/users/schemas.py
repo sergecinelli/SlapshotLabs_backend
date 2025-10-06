@@ -33,6 +33,19 @@ class UserEdit(Schema):
 class SignInSchema(Schema):
     email: str
     password: str
+    remember_me: bool = False
 
 class Message(Schema):
     message: str
+
+class ErrorDictSchema(Schema):
+    errors: dict
+
+class ResetRequestSchema(Schema):
+    email: str
+
+class ResetConfirmSchema(Schema):
+    uidb64: str
+    token: str
+    new_password: str
+    new_password_confirm: str

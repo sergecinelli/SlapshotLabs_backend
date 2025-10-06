@@ -2,3 +2,5 @@ __pycache__
 *env/
 *.env
 .vscode
+hockey_baseball_app_backend/media/
+TODO.txt

@@ -1,37 +1,46 @@
+import datetime
+from typing import Union
 from ninja import Router
 from ninja.security import SessionAuth
 from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate, login, logout
+from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_decode
+from django.http import HttpRequest
 from .models import CustomUser
-from .schemas import Message, UserIn, UserEdit, UserOut, SignInSchema
+from .schemas import Message, ErrorDictSchema, UserIn, UserEdit, UserOut, SignInSchema, ResetConfirmSchema, ResetRequestSchema
 
-router = Router()
+router = Router(tags=["Users"])
+
+User = get_user_model()
 
 @router.post('/signup', response={201: Message})
-def create_user(request, data: UserIn):
-    User = get_user_model()
+def create_user(request: HttpRequest, data: UserIn):
     User.objects.create_user(email=data.email, password=data.password, first_name=data.first_name, last_name=data.last_name)
     return 201, {'message': 'Created'}
 
 @router.post('/signin', response={204: None, 403: Message})
-def sign_in(request, credentials: SignInSchema):
+def sign_in(request: HttpRequest, credentials: SignInSchema):
     user = authenticate(email=credentials.email, password=credentials.password)
     if user is None:
         return 403, {'message': 'Forbidden'}
     login(request, user)
+    if credentials.remember_me:
+        request.session.set_expiry(31622400)    # 366 days.
     return 204, None
 
 @router.get('/signout', auth=SessionAuth(), response={204: None})
-def sign_out(request):
+def sign_out(request: HttpRequest):
     logout(request)
     return 204, None
 
 @router.get('/get', auth=SessionAuth(), response=UserOut)
-def get_user(request):
+def get_user(request: HttpRequest):
     return request.user
 
 @router.post('/edit', auth=SessionAuth(), response={204: None})
-def edit_user(request, data: UserEdit):
+def edit_user(request: HttpRequest, data: UserEdit):
     user: CustomUser = request.user
 
     if data.email is not None:
@@ -56,3 +65,41 @@ def edit_user(request, data: UserEdit):
     user.save()
 
     return 204, None
+
+# region Password reset.
+
+@router.post("/passwordreset/", response={200: Message, 400: ErrorDictSchema})
+def request_password_reset(request: HttpRequest, data: ResetRequestSchema):
+    form = PasswordResetForm(data=data.dict())
+    if form.is_valid():
+        form.save(
+            request=request,
+            use_https=request.is_secure(),
+            from_email=None,  # DEFAULT_FROM_EMAIL is used.
+            email_template_name='registration/password_reset_email1.html',
+            subject_template_name='registration/password_reset_subject1.txt'
+        )
+        return {"message": "Email has been sent successfully."}
+    return 400, {"errors": form.errors}
+
+@router.post("/passwordresetconfirm/", response={200: Message, 400: Union[Message, ErrorDictSchema]})
+def confirm_password_reset(request: HttpRequest, data: ResetConfirmSchema):
+    try:
+        uid = urlsafe_base64_decode(data.uidb64).decode()
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        return 400, {"message": "Invalid user"}
+
+    if not default_token_generator.check_token(user, data.token):
+        return 400, {"message": "Invalid or expired token"}
+
+    form = SetPasswordForm(user, data={
+        'new_password1': data.new_password,
+        'new_password2': data.new_password_confirm,
+    })
+    if form.is_valid():
+        form.save()
+        return {"message": "Password has been reset successfully."}
+    return 400, {"errors": form.errors}
+
+# endregion
