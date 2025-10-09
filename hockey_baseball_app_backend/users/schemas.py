@@ -39,7 +39,7 @@ class Message(Schema):
     message: str
 
 class ErrorDictSchema(Schema):
-    errors: dict
+    errors: str
 
 class ResetRequestSchema(Schema):
     email: str

@@ -31,7 +31,6 @@ class Season(models.Model):
     class Meta:
         db_table = "seasons"
 
-
 class Team(models.Model):
 
     age_group = models.CharField(max_length=3)

@@ -3,17 +3,24 @@ from typing import Union
 from ninja import Router
 from ninja.security import SessionAuth
 from django.conf import settings
-from django.contrib.auth import get_user_model, authenticate, login, logout
+from django.contrib.auth import get_user_model, authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponse
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from .models import CustomUser
 from .schemas import Message, ErrorDictSchema, UserIn, UserEdit, UserOut, SignInSchema, ResetConfirmSchema, ResetRequestSchema
 
 router = Router(tags=["Users"])
 
 User = get_user_model()
+
+@router.post("/csrf")
+@ensure_csrf_cookie
+@csrf_exempt
+def get_csrf_token(request: HttpRequest):
+    return HttpResponse()
 
 @router.post('/signup', response={201: Message})
 def create_user(request: HttpRequest, data: UserIn):
@@ -61,6 +68,7 @@ def edit_user(request: HttpRequest, data: UserEdit):
         user.postal_code = data.postal_code
     if data.password is not None:
         user.set_password(data.password)
+        update_session_auth_hash(request, user)
 
     user.save()
 
@@ -100,6 +108,6 @@ def confirm_password_reset(request: HttpRequest, data: ResetConfirmSchema):
     if form.is_valid():
         form.save()
         return {"message": "Password has been reset successfully."}
-    return 400, {"errors": form.errors}
+    return 400, {"errors": str(form.errors.as_text())}
 
 # endregion
