@@ -45,6 +45,13 @@ class Team(models.Model):
 
     class Meta:
         db_table = "teams"
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=['name', 'city'],
+                name='unique_team'
+            )
+        ]
     
 class TeamSeason(models.Model):
 
