@@ -28,9 +28,13 @@ def get_goalie(request: HttpRequest, goalie_id: int):
     goalie = get_object_or_404(Goalie, id=goalie_id)
     return goalie
 
-@router.post('/goalie', response=ObjectId)
+@router.post('/goalie', response={200: ObjectId, 503: Message})
 def add_goalie(request: HttpRequest, data: GoalieIn):
-    goalie = Goalie.objects.create(position_id=1, **data.dict())
+    goalie_position = PlayerPosition.objects.filter(name__iexact="goalie")
+    if len(goalie_position) == 0:
+        return 503, {'message': "Can't reconcile dependencies. Please try again later."}
+    position_id = goalie_position[0].id
+    goalie = Goalie.objects.create(position_id=position_id, **data.dict())
     return {"id": goalie.id}
 
 @router.put("/goalie/{goalie_id}", response={204: None})
