@@ -15,7 +15,6 @@ class CustomUser(AbstractUser):
     city = models.CharField(_("city"), max_length=100)
     street = models.CharField(_("street"), max_length=200, blank=True)
     postal_code = models.CharField(_("postal/zip code"), max_length=50, blank=True)
-    save_percents = models.IntegerField(_("save %"), null=True, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["first_name", "last_name"]

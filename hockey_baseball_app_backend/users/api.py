@@ -2,10 +2,12 @@ import datetime
 from typing import Union
 from ninja import Router
 from ninja.security import SessionAuth
+from django.db import IntegrityError
 from django.conf import settings
-from django.contrib.auth import get_user_model, authenticate, login, logout, update_session_auth_hash
+from django.contrib.auth import get_user_model, authenticate, login, logout, update_session_auth_hash, password_validation
 from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
 from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ValidationError
 from django.utils.http import urlsafe_base64_decode
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
@@ -22,9 +24,15 @@ User = get_user_model()
 def get_csrf_token(request: HttpRequest):
     return HttpResponse()
 
-@router.post('/signup', response={201: Message})
+@router.post('/signup', response={201: Message, 400: Message})
 def create_user(request: HttpRequest, data: UserIn):
-    User.objects.create_user(email=data.email, password=data.password, first_name=data.first_name, last_name=data.last_name)
+    try:
+        password_validation.validate_password(data.password)
+        User.objects.create_user(email=data.email, password=data.password, first_name=data.first_name, last_name=data.last_name)
+    except ValidationError:
+        return 400, {'message': 'Password is too simple or short.'}
+    except IntegrityError:
+        return 400, {'message': 'User already exists or data is incomplete.'}
     return 201, {'message': 'Created'}
 
 @router.post('/signin', response={204: None, 403: Message})
@@ -46,7 +54,7 @@ def sign_out(request: HttpRequest):
 def get_user(request: HttpRequest):
     return request.user
 
-@router.post('/edit', auth=SessionAuth(), response={204: None})
+@router.post('/edit', auth=SessionAuth(), response={204: None, 400: Message})
 def edit_user(request: HttpRequest, data: UserEdit):
     user: CustomUser = request.user
 
@@ -67,6 +75,10 @@ def edit_user(request: HttpRequest, data: UserEdit):
     if data.postal_code is not None:
         user.postal_code = data.postal_code
     if data.password is not None:
+        try:
+            password_validation.validate_password(data.password)
+        except ValidationError:
+            return 400, {'message': 'Password is too simple or short.'}
         user.set_password(data.password)
         update_session_auth_hash(request, user)
 
