@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     'ninja',
     'users',
     'hockey',
+    'django_cleanup.apps.CleanupConfig',
 ]
 
 MIDDLEWARE = [
