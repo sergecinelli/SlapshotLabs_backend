@@ -28,13 +28,16 @@ def get_goalie(request: HttpRequest, goalie_id: int):
     goalie = get_object_or_404(Goalie, id=goalie_id)
     return goalie
 
-@router.post('/goalie', response={200: ObjectId, 503: Message})
+@router.post('/goalie', response={200: ObjectId, 400: Message, 503: Message})
 def add_goalie(request: HttpRequest, data: GoalieIn):
     goalie_position = PlayerPosition.objects.filter(name__iexact="goalie")
     if len(goalie_position) == 0:
         return 503, {'message': "Can't reconcile dependencies. Please try again later."}
     position_id = goalie_position[0].id
-    goalie = Goalie.objects.create(position_id=position_id, **data.dict())
+    try:
+        goalie = Goalie.objects.create(position_id=position_id, **data.dict())
+    except IntegrityError as e:
+        return resp.entry_already_exists("Goalie", str(e))
     return {"id": goalie.id}
 
 @router.put("/goalie/{goalie_id}", response={204: None})
@@ -61,9 +64,12 @@ def get_player(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player, id=player_id)
     return player
 
-@router.post('/player', response=ObjectId)
+@router.post('/player', response={200: ObjectId, 400: Message})
 def add_player(request: HttpRequest, data: PlayerIn):
-    player = Player.objects.create(**data.dict())
+    try:
+        player = Player.objects.create(**data)
+    except IntegrityError as e:
+        return resp.entry_already_exists("Player", str(e))
     return {"id": player.id}
 
 @router.put("/player/{player_id}", response={204: None})
@@ -150,7 +156,10 @@ def get_season(request: HttpRequest, season_id: int):
 
 @router.post('/season', response=ObjectId)
 def add_season(request: HttpRequest, data: SeasonIn):
-    season = Season.objects.create(**data.dict())
+    try:
+        season = Season.objects.create(**data.dict())
+    except IntegrityError as e:
+        return resp.entry_already_exists("Season", str(e))
     return {"id": season.id}
 
 @router.put("/season/{season_id}", response={204: None})
@@ -179,7 +188,10 @@ def get_team_season(request: HttpRequest, team_season_id: int):
 
 @router.post('/team-season', response=ObjectId)
 def add_team_season(request: HttpRequest, data: TeamSeasonIn):
-    team_season = TeamSeason.objects.create(**data.dict())
+    try:
+        team_season = TeamSeason.objects.create(**data.dict())
+    except IntegrityError as e:
+        return resp.entry_already_exists("Team season", str(e))
     return {"id": team_season.id}
 
 @router.put("/team-season/{team_season_id}", response={204: None})

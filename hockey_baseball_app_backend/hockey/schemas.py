@@ -4,6 +4,7 @@ from ninja import Field, Schema
 
 class Message(Schema):
     message: str
+    details: str | None = None
 
 class ObjectId(Schema):
     id: int
@@ -25,7 +26,6 @@ class GoalieIn(Schema):
     birth_year: datetime.date
     wins: int
     losses: int
-    saves_above_avg: int
 
 class GoalieOut(GoalieIn):
     id: int

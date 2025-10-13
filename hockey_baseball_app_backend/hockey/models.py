@@ -109,7 +109,7 @@ class Goalie(models.Model):
     power_play_goals_against = models.IntegerField("PPGA", default=0)
     """PPGA field."""
 
-    saves_above_avg = models.IntegerField()
+    saves_above_avg = models.IntegerField(default=0)    # Not used.
 
     shots_on_goal_per_game = models.GeneratedField(
         expression=Case(When(games_played__gt=0, then=(F('shots_on_goal') / F('games_played'))),
