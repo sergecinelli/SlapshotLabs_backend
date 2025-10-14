@@ -16,7 +16,7 @@ class PlayerPositionOut(Schema):
     name: str
 
 class GoalieIn(Schema):
-    team_id: int
+    team_id: int | None = None
     height: int = Field(..., description="Height in inches.")
     weight: int = Field(..., description="Weight in lbs.")
     shoots: str = Field(..., description="\"R\" - Right Shot, \"L\" - Left Shot.")
@@ -47,7 +47,7 @@ class GoalieOut(GoalieIn):
     points: int
 
 class PlayerIn(Schema):
-    team_id: int
+    team_id: int | None = None
     position_id: int
     height: int = Field(..., description="Height in inches.")
     weight: int = Field(..., description="Weight in lbs.")
@@ -117,5 +117,101 @@ class TeamSeasonIn(Schema):
 
 class TeamSeasonOut(TeamSeasonIn):
     id: int
+
+# endregion
+
+# region Game
+
+class ArenaIn(Schema):
+    name: str
+    address: str
+
+class ArenaOut(ArenaIn):
+    id: int
+
+class ArenaRinkIn(Schema):
+    name: str
+    arena_id: int
+
+class ArenaRinkOut(ArenaRinkIn):
+    id: int
+
+class GameTypeOut(Schema):
+    id: int
+    name: str
+
+class GamePeriodOut(Schema):
+    id: int
+    name: str
+
+class DefensiveZoneExitIn(Schema):
+    icing: int
+    skate_out: int
+    so_win: int = Field(..., description="SO & Win")
+    so_lose: int = Field(..., description="SO & Lose")
+    passes: int = Field(..., description="Pass")
+
+class DefensiveZoneExitOut(DefensiveZoneExitIn):
+    id: int
+
+class OffensiveZoneEntryIn(Schema):
+    pass_in: int = Field(..., description="Pass")
+    dump_win: int = Field(..., description="Dump/W")
+    dump_lose: int = Field(..., description="Dump/L")
+    skate_in: int
+
+class OffensiveZoneEntryInOut(OffensiveZoneEntryIn):
+    id: int
+
+class ShotsIn(Schema):
+    shots_on_goal: int
+    missed_net: int
+    scoring_chance: int
+    blocked: int
+
+class ShotsOut(ShotsIn):
+    id: int
+
+class TurnoversIn(Schema):
+    off_zone: int
+    neutral_zone: int
+    def_zone: int
+
+class TurnoversOut(TurnoversIn):
+    id: int
+
+class GameIn(Schema):
+    home_team_id: int
+    home_goals: int
+    home_team_goalie_id: int
+    away_team_id: int
+    away_goals: int
+    away_team_goalie_id: int
+    game_type_id: int
+    tournament_name: str | None = None
+    status: int = Field(..., description="1 - Not Started, 2 - Game in Progress, 3 - Game Over")
+    date: datetime.date
+    time: datetime.time
+    rink_id: int
+
+    game_period_id: int | None = None
+    game_type_group: str
+
+    home_faceoff_win: int = 0
+
+    away_faceoff_win: int = 0
+
+class GameOut(GameIn):
+    id: int
+
+    home_defensive_zone_exit_id: int = None
+    home_offensive_zone_entry_id: int = None
+    home_shots_id: int = None
+    home_turnovers_id: int = None
+
+    away_defensive_zone_exit_id: int = None
+    away_offensive_zone_entry_id: int = None
+    away_shots_id: int = None
+    away_turnovers_id: int = None
 
 # endregion

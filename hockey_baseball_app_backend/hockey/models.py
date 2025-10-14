@@ -231,11 +231,11 @@ class ArenaRink(models.Model):
 
 class DefensiveZoneExit(models.Model):
 
-    icing = models.IntegerField()
-    skate_out = models.IntegerField()
-    so_win = models.IntegerField("SO & Win")
-    so_lose = models.IntegerField("SO & Lose")
-    passes = models.IntegerField("Pass")
+    icing = models.IntegerField(default=0)
+    skate_out = models.IntegerField(default=0)
+    so_win = models.IntegerField("SO & Win", default=0)
+    so_lose = models.IntegerField("SO & Lose", default=0)
+    passes = models.IntegerField("Pass", default=0)
 
     def __str__(self):
         return f'{str(self.game)} - DefensiveZoneExit'
@@ -245,10 +245,10 @@ class DefensiveZoneExit(models.Model):
 
 class OffensiveZoneEntry(models.Model):
 
-    pass_in = models.IntegerField("Pass")
-    dump_win = models.IntegerField("Dump/W")
-    dump_lose = models.IntegerField("Dump/L")
-    skate_in = models.IntegerField()
+    pass_in = models.IntegerField("Pass", default=0)
+    dump_win = models.IntegerField("Dump/W", default=0)
+    dump_lose = models.IntegerField("Dump/L", default=0)
+    skate_in = models.IntegerField(default=0)
 
     def __str__(self):
         return f'{str(self.game)} - OffensiveZoneEntry'
@@ -258,10 +258,10 @@ class OffensiveZoneEntry(models.Model):
 
 class Shots(models.Model):
 
-    shots_on_goal = models.IntegerField()
-    missed_net = models.IntegerField()
-    scoring_chance = models.IntegerField()
-    blocked = models.IntegerField()
+    shots_on_goal = models.IntegerField(default=0)
+    missed_net = models.IntegerField(default=0)
+    scoring_chance = models.IntegerField(default=0)
+    blocked = models.IntegerField(default=0)
 
     def __str__(self):
         return f'{str(self.game)} - Shots'
@@ -271,9 +271,9 @@ class Shots(models.Model):
 
 class Turnovers(models.Model):
 
-    off_zone = models.IntegerField()
-    neutral_zone = models.IntegerField()
-    def_zone = models.IntegerField()
+    off_zone = models.IntegerField(default=0)
+    neutral_zone = models.IntegerField(default=0)
+    def_zone = models.IntegerField(default=0)
 
     def __str__(self):
         return f'{str(self.game)} - Turnovers'
@@ -324,16 +324,16 @@ class Game(models.Model):
 
     # Dashboard fields.
 
-    game_period = models.ForeignKey(GamePeriod, on_delete=models.RESTRICT)
+    game_period = models.ForeignKey(GamePeriod, on_delete=models.RESTRICT, null=True, blank=True)
     game_type_group = models.CharField(max_length=10)
 
-    home_faceoff_win = models.IntegerField("Home Faceoff Win %")
+    home_faceoff_win = models.IntegerField("Home Faceoff Win %", null=True, blank=True)
     home_defensive_zone_exit = models.OneToOneField(DefensiveZoneExit, related_name='home_game', on_delete=models.RESTRICT)
     home_offensive_zone_entry = models.OneToOneField(OffensiveZoneEntry, related_name='home_game', on_delete=models.RESTRICT)
     home_shots = models.OneToOneField(Shots, related_name='home_game', on_delete=models.RESTRICT)
     home_turnovers = models.OneToOneField(Turnovers, related_name='home_game', on_delete=models.RESTRICT)
 
-    away_faceoff_win = models.IntegerField("Away Faceoff Win %")
+    away_faceoff_win = models.IntegerField("Away Faceoff Win %", null=True, blank=True)
     away_defensive_zone_exit = models.OneToOneField(DefensiveZoneExit, related_name='away_game', on_delete=models.RESTRICT)
     away_offensive_zone_entry = models.OneToOneField(OffensiveZoneEntry, related_name='away_game', on_delete=models.RESTRICT)
     away_shots = models.OneToOneField(Shots, related_name='away_game', on_delete=models.RESTRICT)

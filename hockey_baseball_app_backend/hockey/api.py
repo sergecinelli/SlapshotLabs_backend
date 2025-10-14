@@ -1,7 +1,7 @@
 import datetime
 import os
 from django.conf import settings
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from ninja import File, Router, PatchDict
 from ninja.files import UploadedFile
@@ -11,9 +11,9 @@ from django.core.files import File as FileSaver
 from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
-from .schemas import (DivisionOut, Message, ObjectId, PlayerPositionOut, GoalieIn, GoalieOut, PlayerIn, PlayerUpdate, PlayerOut, SeasonIn, SeasonOut,
+from .schemas import (ArenaOut, ArenaRinkOut, DivisionOut, GameIn, GameOut, GamePeriodOut, GameTypeOut, Message, ObjectId, PlayerPositionOut, GoalieIn, GoalieOut, PlayerIn, PlayerUpdate, PlayerOut, SeasonIn, SeasonOut,
                       TeamIn, TeamLevelOut, TeamOut, TeamSeasonIn, TeamSeasonOut)
-from .models import Division, Goalie, Player, PlayerPosition, Season, Team, TeamLevel, TeamSeason
+from .models import Arena, ArenaRink, DefensiveZoneExit, Division, Game, GamePeriod, GameType, Goalie, OffensiveZoneEntry, Player, PlayerPosition, Season, Shots, Team, TeamLevel, TeamSeason, Turnovers
 from .utils import api_response_templates as resp
 
 router = Router(tags=["Hockey"])
@@ -213,6 +213,80 @@ def update_team_season(request: HttpRequest, team_season_id: int, data: PatchDic
 def delete_team_season(request: HttpRequest, team_season_id: int):
     team_season = get_object_or_404(TeamSeason, id=team_season_id)
     team_season.delete()
+    return 204, None
+
+# endregion
+
+# region Schedule
+
+@router.get('/arena/list', response=list[ArenaOut])
+def get_arenas(request: HttpRequest):
+    arenas = Arena.objects.all()
+    return arenas
+
+@router.get('/arena-rink/list', response=list[ArenaRinkOut])
+def get_arena_rinks(request: HttpRequest):
+    arena_rinks = ArenaRink.objects.all()
+    return arena_rinks
+
+@router.get('/game-type/list', response=list[GameTypeOut])
+def get_game_types(request: HttpRequest):
+    game_types = GameType.objects.all()
+    return game_types
+
+@router.get('/game-period/list', response=list[GamePeriodOut])
+def get_game_periods(request: HttpRequest):
+    game_periods = GamePeriod.objects.all()
+    return game_periods
+
+@router.get('/game/list', response=list[GameOut])
+def get_games(request: HttpRequest):
+    games = Game.objects.all()
+    return games
+
+@router.get('/game/{game_id}', response=GameOut)
+def get_game(request: HttpRequest, game_id: int):
+    game = get_object_or_404(Game, id=game_id)
+    return game
+
+@router.post('/game', response={200: GameOut, 400: Message, 503: Message})
+def add_game(request: HttpRequest, data: GameIn):
+    try:
+        with transaction.atomic():
+            home_defensive_zone_exit = DefensiveZoneExit.objects.create()
+            home_offensive_zone_entry = OffensiveZoneEntry.objects.create()
+            home_shots = Shots.objects.create()
+            home_turnovers = Turnovers.objects.create()
+            away_defensive_zone_exit = DefensiveZoneExit.objects.create()
+            away_offensive_zone_entry = OffensiveZoneEntry.objects.create()
+            away_shots = Shots.objects.create()
+            away_turnovers = Turnovers.objects.create()
+            game = Game.objects.create(home_defensive_zone_exit=home_defensive_zone_exit,
+                        home_offensive_zone_entry=home_offensive_zone_entry,
+                        home_shots=home_shots,
+                        home_turnovers=home_turnovers,
+                        away_defensive_zone_exit=away_defensive_zone_exit,
+                        away_offensive_zone_entry=away_offensive_zone_entry,
+                        away_shots=away_shots,
+                        away_turnovers=away_turnovers,
+                        **data.dict())
+    except IntegrityError as e:
+        return resp.entry_already_exists("Game", str(e))
+    game = Game.objects.get(id=game.id)
+    return game
+
+@router.put("/game/{game_id}", response={204: None})
+def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
+    game = get_object_or_404(Game, id=game_id)
+    for attr, value in data.items():
+        setattr(game, attr, value)
+    game.save()
+    return 204, None
+
+@router.delete("/game/{game_id}", response={204: None})
+def delete_game(request: HttpRequest, game_id: int):
+    game = get_object_or_404(Game, id=game_id)
+    game.delete()
     return 204, None
 
 # endregion
