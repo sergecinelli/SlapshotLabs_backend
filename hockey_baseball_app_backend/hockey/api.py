@@ -15,7 +15,7 @@ from faker_animals import AnimalsProvider
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, GameEventIn, GameEventOut, GameGoalieIn, GameGoalieOut, GameIn, GameOut, GamePlayerIn, GamePlayerOut, GamePlayersIn, GamePlayersOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, PlayerPositionOut, GoalieIn, GoalieOut, PlayerIn, PlayerUpdate, PlayerOut, SeasonIn, SeasonOut, ShotsIn,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn)
 from .models import Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, OffensiveZoneEntry, Player, PlayerPosition, Season, Shots, Team, TeamLevel, TeamSeason, Turnovers
-from .utils import api_response_templates as resp, schema_resolvers
+from .utils import api_response_templates as resp
 
 router = Router(tags=["Hockey"])
 
