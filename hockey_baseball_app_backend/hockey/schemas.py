@@ -2,12 +2,19 @@ import datetime
 from typing import Optional
 from ninja import Field, Schema
 
+# region Common
+
 class Message(Schema):
     message: str
     details: str | None = None
 
 class ObjectId(Schema):
     id: int
+
+class ObjectIdName(ObjectId):
+    name: str
+
+# endregion
 
 # region Goalie, player
 
@@ -82,14 +89,6 @@ class PlayerOut(PlayerIn):
 
 # region Team, season, division, level
 
-class DivisionOut(Schema):
-    id: int
-    name: str
-
-class TeamLevelOut(Schema):
-    id: int
-    name: str
-
 class SeasonIn(Schema):
     name: str
 
@@ -136,14 +135,6 @@ class ArenaRinkIn(Schema):
 class ArenaRinkOut(ArenaRinkIn):
     id: int
 
-class GameTypeOut(Schema):
-    id: int
-    name: str
-
-class GamePeriodOut(Schema):
-    id: int
-    name: str
-
 class DefensiveZoneExitIn(Schema):
     icing: int
     skate_out: int
@@ -183,10 +174,10 @@ class TurnoversOut(TurnoversIn):
 class GameIn(Schema):
     home_team_id: int
     home_goals: int
-    home_team_goalie_id: int
+    home_team_goalie_id: int | None = None
     away_team_id: int
     away_goals: int
-    away_team_goalie_id: int
+    away_team_goalie_id: int | None = None
     game_type_id: int
     tournament_name: str | None = None
     status: int = Field(..., description="1 - Not Started, 2 - Game in Progress, 3 - Game Over")
@@ -213,5 +204,67 @@ class GameOut(GameIn):
     away_offensive_zone_entry_id: int = None
     away_shots_id: int = None
     away_turnovers_id: int = None
+
+class GameGoalieIn(Schema):
+    goals_against: int
+    saves: int
+
+class GameGoalieOut(GameGoalieIn):
+    id: int
+    first_name: str
+    last_name: str
+
+class GamePlayerIn(Schema):
+    goals: int
+    assists: int
+    shots: int
+
+class GamePlayerOut(GamePlayerIn):
+    id: int
+    first_name: str
+    last_name: str
+
+class GamePlayersIn(Schema):
+    goalie_ids: list[int]
+    player_ids: list[int]
+
+class GamePlayersOut(Schema):
+    home_goalies: list[GameGoalieOut]
+    home_players: list[GamePlayerOut]
+    away_goalies: list[GameGoalieOut]
+    away_players: list[GamePlayerOut]
+
+# endregion
+
+# region Event
+
+class GameEventIn(Schema):
+    game_id: int
+    # number: int   # Calculated automatically.
+    event_name_id: int
+    time: datetime.time
+    period_id: int
+    team_id: int
+    players: list[int] = Field(..., description="List of players IDs.")
+    goalie_id: int | None = None
+
+    # Spray chart points.
+    ice_top_offset: int | None = None
+    ice_left_offset: int | None = None
+    net_top_offset: int | None = None
+    net_left_offset: int | None = None
+
+    youtube_link: str | None = None
+
+class GameEventOut(GameEventIn):
+    id: int
+    number: int
+
+    @staticmethod
+    def resolve_players(obj):
+        players_list = []
+        for player in obj.players.all():
+            players_list.append(player.id)
+        return players_list
 
 # endregion

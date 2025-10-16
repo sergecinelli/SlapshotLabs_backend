@@ -349,9 +349,9 @@ class GamePlayer(models.Model):
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     player = models.ForeignKey(Player, on_delete=models.RESTRICT)
-    goals = models.IntegerField()
-    assists = models.IntegerField()
-    shots = models.IntegerField()
+    goals = models.IntegerField(default=0)
+    assists = models.IntegerField(default=0)
+    shots = models.IntegerField(default=0)
 
     def __str__(self):
         return f'{str(self.game)} - {self.player.first_name} {self.player.last_name}'
@@ -363,8 +363,8 @@ class GameGoalie(models.Model):
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT)
-    goals_against = models.IntegerField()
-    saves = models.IntegerField()
+    goals_against = models.IntegerField(default=0)
+    saves = models.IntegerField(default=0)
 
     def __str__(self):
         return f'{str(self.game)} - {self.goalie.first_name} {self.goalie.last_name}'
@@ -386,16 +386,19 @@ class GameEvents(models.Model):
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     number = models.IntegerField()
-    event_name = models.ForeignKey(GameEventName, on_delete=models.CASCADE)
+    event_name = models.ForeignKey(GameEventName, on_delete=models.RESTRICT)
     time = models.TimeField(auto_now=False, auto_now_add=False)
     period = models.ForeignKey(GamePeriod, on_delete=models.RESTRICT)
     team = models.ForeignKey(Team, on_delete=models.RESTRICT)
     players = models.ManyToManyField(Player)
-    goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT)
-    ice_top_offset = models.IntegerField()
-    ice_left_offset = models.IntegerField()
-    net_top_offset = models.IntegerField()
-    net_left_offset = models.IntegerField()
+    goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT, null=True)
+
+    # Spray chart points.
+    ice_top_offset = models.IntegerField(null=True, blank=True)
+    ice_left_offset = models.IntegerField(null=True, blank=True)
+    net_top_offset = models.IntegerField(null=True, blank=True)
+    net_left_offset = models.IntegerField(null=True, blank=True)
+
     youtube_link = models.CharField("YouTube Link", max_length=150, null=True, blank=True)
 
     def __str__(self):
