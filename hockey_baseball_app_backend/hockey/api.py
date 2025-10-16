@@ -50,7 +50,7 @@ def add_goalie(request: HttpRequest, data: GoalieIn):
         return resp.entry_already_exists("Goalie", str(e))
     return {"id": goalie.id}
 
-@router.put("/goalie/{goalie_id}", response={204: None})
+@router.patch("/goalie/{goalie_id}", response={204: None})
 def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn]):
     goalie = get_object_or_404(Goalie, id=goalie_id)
     for attr, value in data.items():
@@ -84,7 +84,7 @@ def add_player(request: HttpRequest, data: PlayerIn):
         return resp.entry_already_exists("Player", str(e))
     return {"id": player.id}
 
-@router.put("/player/{player_id}", response={204: None})
+@router.patch("/player/{player_id}", response={204: None})
 def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerUpdate]):
     player = get_object_or_404(Player, id=player_id)
     for attr, value in data.items():
@@ -137,7 +137,7 @@ def add_team(request: HttpRequest, data: TeamIn, logo: File[UploadedFile] = None
         return resp.entry_already_exists("Team")
     return {"id": team.id}
 
-@router.put("/team/{team_id}", response={204: None})
+@router.patch("/team/{team_id}", response={204: None})
 def update_team(request: HttpRequest, team_id: int, data: PatchDict[TeamIn], logo: File[UploadedFile] = None):
     team = get_object_or_404(Team, id=team_id)
     for attr, value in data.items():
@@ -174,7 +174,7 @@ def add_season(request: HttpRequest, data: SeasonIn):
         return resp.entry_already_exists("Season", str(e))
     return {"id": season.id}
 
-@router.put("/season/{season_id}", response={204: None})
+@router.patch("/season/{season_id}", response={204: None})
 def update_season(request: HttpRequest, season_id: int, data: PatchDict[SeasonIn]):
     season = get_object_or_404(Season, id=season_id)
     for attr, value in data.items():
@@ -206,7 +206,7 @@ def add_team_season(request: HttpRequest, data: TeamSeasonIn):
         return resp.entry_already_exists("Team season", str(e))
     return {"id": team_season.id}
 
-@router.put("/team-season/{team_season_id}", response={204: None})
+@router.patch("/team-season/{team_season_id}", response={204: None})
 def update_team_season(request: HttpRequest, team_season_id: int, data: PatchDict[TeamSeasonIn]):
     team_season = get_object_or_404(TeamSeason, id=team_season_id)
     for attr, value in data.items():
@@ -280,7 +280,7 @@ def add_game(request: HttpRequest, data: GameIn):
     game = Game.objects.get(id=game.id)
     return game
 
-@router.put("/game/{game_id}", response={204: None})
+@router.patch("/game/{game_id}", response={204: None})
 def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
     game = get_object_or_404(Game, id=game_id)
     for attr, value in data.items():
@@ -294,7 +294,7 @@ def delete_game(request: HttpRequest, game_id: int):
     game.delete()
     return 204, None
 
-@router.put("/game/defensive-zone-exit/{defensive_zone_exit_id}", response={204: None})
+@router.patch("/game/defensive-zone-exit/{defensive_zone_exit_id}", response={204: None})
 def update_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id: int, data: PatchDict[DefensiveZoneExitIn]):
     defensive_zone_exit = get_object_or_404(DefensiveZoneExit, id=defensive_zone_exit_id)
     for attr, value in data.items():
@@ -302,7 +302,7 @@ def update_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id
     defensive_zone_exit.save()
     return 204, None
 
-@router.put("/game/offensive-zone-entry/{offensive_zone_entry_id}", response={204: None})
+@router.patch("/game/offensive-zone-entry/{offensive_zone_entry_id}", response={204: None})
 def update_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_id: int, data: PatchDict[OffensiveZoneEntryIn]):
     offensive_zone_entry = get_object_or_404(OffensiveZoneEntry, id=offensive_zone_entry_id)
     for attr, value in data.items():
@@ -310,7 +310,7 @@ def update_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_
     offensive_zone_entry.save()
     return 204, None
 
-@router.put("/game/shots/{shots_id}", response={204: None})
+@router.patch("/game/shots/{shots_id}", response={204: None})
 def update_game_shots(request: HttpRequest, shots_id: int, data: PatchDict[ShotsIn]):
     shots = get_object_or_404(Shots, id=shots_id)
     for attr, value in data.items():
@@ -318,7 +318,7 @@ def update_game_shots(request: HttpRequest, shots_id: int, data: PatchDict[Shots
     shots.save()
     return 204, None
 
-@router.put("/game/turnovers/{turnovers_id}", response={204: None})
+@router.patch("/game/turnovers/{turnovers_id}", response={204: None})
 def update_turnovers(request: HttpRequest, turnovers_id: int, data: PatchDict[TurnoversIn]):
     turnovers = get_object_or_404(Turnovers, id=turnovers_id)
     for attr, value in data.items():
@@ -365,7 +365,7 @@ def set_game_players(request: HttpRequest, game_id: int, data: GamePlayersIn):
             GamePlayer.objects.create(game_id=game_id, player_id=player_id)
     return 204, None
 
-@router.put("/game-player/goalie/{game_goalie_id}", response={204: None})
+@router.patch("/game-player/goalie/{game_goalie_id}", response={204: None})
 def update_game_goalie(request: HttpRequest, game_goalie_id: int, data: PatchDict[GameGoalieIn]):
     goalie = get_object_or_404(GameGoalie, id=game_goalie_id)
     for attr, value in data.items():
@@ -373,7 +373,7 @@ def update_game_goalie(request: HttpRequest, game_goalie_id: int, data: PatchDic
     goalie.save()
     return 204, None
 
-@router.put("/game-player/player/{game_player_id}", response={204: None})
+@router.patch("/game-player/player/{game_player_id}", response={204: None})
 def update_game_player(request: HttpRequest, game_player_id: int, data: PatchDict[GamePlayerIn]):
     player = get_object_or_404(GamePlayer, id=game_player_id)
     for attr, value in data.items():
@@ -421,7 +421,7 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
         return resp.entry_already_exists("Game event", str(e))
     return {"id": game_event.id}
 
-@router.put("/game-event/{game_event_id}", response={204: None, 400: Message})
+@router.patch("/game-event/{game_event_id}", response={204: None, 400: Message})
 def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[GameEventIn]):
     game_event = get_object_or_404(GameEvents, id=game_event_id)
     for attr, value in data.items():

@@ -54,7 +54,7 @@ def sign_out(request: HttpRequest):
 def get_user(request: HttpRequest):
     return request.user
 
-@router.post('/edit', auth=SessionAuth(), response={204: None, 400: Message})
+@router.patch('/edit', auth=SessionAuth(), response={204: None, 400: Message})
 def edit_user(request: HttpRequest, data: UserEdit):
     user: CustomUser = request.user
 
