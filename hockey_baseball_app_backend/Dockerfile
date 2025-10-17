@@ -7,8 +7,8 @@ RUN mkdir /app
 # Set the working directory inside the container
 WORKDIR /app
 
-# RUN apt-get update
-# RUN apt-get install -y necessary_package
+# Install curl for health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
  
 # Set environment variables 
 # Prevents Python from writing pyc files to disk
@@ -31,11 +31,22 @@ COPY hockey_baseball_app_backend/ /app/
 # Create data directory for mounted database
 # RUN mkdir -p /app/data
 
-# Collect static files and apply migrations
-RUN python manage.py collectstatic --noinput && python manage.py migrate && python manage.py migrate hockey --database hockey
-
 # Expose the Django port
 EXPOSE 8000
 
-# Run Uvicorn
-CMD ["sh", "-c", "uvicorn hockey_baseball_app_backend.asgi:application --host 0.0.0.0 --port 8000 --log-level debug"]
+# Create startup script
+RUN echo '#!/bin/sh\n\
+echo "Starting Django application..."\n\
+python manage.py collectstatic --noinput\n\
+python manage.py migrate\n\
+python manage.py migrate hockey --database hockey\n\
+echo "Starting uvicorn server on port ${PORT:-8000}..."\n\
+exec uvicorn hockey_baseball_app_backend.asgi:application --host 0.0.0.0 --port ${PORT:-8000} --log-level info' > /app/start.sh && \
+chmod +x /app/start.sh
+
+# Add health check for App Runner
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8000/health/ || exit 1
+
+# Run startup script
+CMD ["/app/start.sh"]
