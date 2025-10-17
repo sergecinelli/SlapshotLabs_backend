@@ -22,11 +22,11 @@ RUN pip install --upgrade pip
 RUN pip install uvicorn
  
 # Copy requirements first to leverage Docker cache
-COPY requirements.txt .
+COPY hockey_baseball_app_backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the Django project to the container
-COPY . /app/
+COPY hockey_baseball_app_backend/* /app/
 
 # Create data directory for mounted database
 # RUN mkdir -p /app/data
