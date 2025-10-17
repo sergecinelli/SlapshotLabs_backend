@@ -26,7 +26,7 @@ COPY hockey_baseball_app_backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the Django project to the container
-COPY hockey_baseball_app_backend/* /app/
+COPY hockey_baseball_app_backend/ /app/
 
 # Create data directory for mounted database
 # RUN mkdir -p /app/data
