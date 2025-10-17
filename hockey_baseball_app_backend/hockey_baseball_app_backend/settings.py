@@ -185,11 +185,27 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
+if DEBUG:
+
+    MEDIA_ROOT = BASE_DIR / 'media'
+    MEDIA_URL = '/media/'
+
+else:
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "bucket_name": "bucket-name",
+                "location": "media"
+            },
+        },
+    }
+
+    MEDIA_URL = f'https://{STORAGES["default"]["OPTIONS"]["bucket_name"]}.s3.amazonaws.com/{STORAGES["default"]["OPTIONS"]["location"]}/'
+
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / env('STATIC_ROOT_DIR')
-
-MEDIA_ROOT = BASE_DIR / 'media'
-MEDIA_URL = '/media/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
