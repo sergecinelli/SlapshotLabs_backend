@@ -15,7 +15,22 @@ import environ
 import os
 
 env = environ.Env(
-    DEBUG=(bool, False)
+    DEBUG=(bool, False),
+    SECRET_KEY=(str, 'django-insecure-default-key-for-development-only'),
+    ALLOWED_HOSTS=(str, 'localhost,127.0.0.1'),
+    CSRF_TRUSTED_ORIGINS=(str, 'http://localhost:8000,http://127.0.0.1:8000'),
+    STATIC_ROOT_DIR=(str, 'staticfiles'),
+    DB_NAME=(str, 'postgres'),
+    DB_USER=(str, 'postgres'),
+    DB_HOST=(str, 'localhost'),
+    DB_PORT=(str, '5432'),
+    DB_PASSWORD=(str, ''),
+    DB_NAME_HOCKEY=(str, 'hockey_db'),
+    EMAIL_HOST=(str, 'localhost'),
+    EMAIL_PORT=(int, 587),
+    EMAIL_HOST_USER=(str, ''),
+    EMAIL_HOST_PASSWORD=(str, ''),
+    DEFAULT_FROM_EMAIL=(str, 'noreply@example.com'),
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
