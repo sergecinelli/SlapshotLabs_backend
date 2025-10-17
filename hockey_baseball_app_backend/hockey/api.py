@@ -477,17 +477,17 @@ def add_fake_teams(request):
             city=fake_city
         )
 
-        # if settings.DEBUG:
-        #     with open(os.path.join(settings.MEDIA_ROOT,
-        #                         f"fakes/team{fake.random_int(1, 2)}.png"), "rb") as img_file:
-        #         img_to_store = FileSaver(img_file)
-        #         team.logo.save(f"{team.name}.png", img_to_store)
-        #         team.save()
-        # else:
-        with default_storage.open(f"fakes/team{fake.random_int(1, 2)}.png", "rb") as img_file:
-            # img_to_store = FileSaver(img_file)
-            team.logo.save(f"{team.name}.png", img_file)
-            team.save()
+        if settings.DEBUG:
+            with open(os.path.join(settings.MEDIA_ROOT,
+                                f"fakes/team{fake.random_int(1, 2)}.png"), "rb") as img_file:
+                img_to_store = FileSaver(img_file)
+                team.logo.save(f"{team.name}.png", img_to_store)
+                team.save()
+        else:
+            with default_storage.open(f"fakes/team{fake.random_int(1, 2)}.png", "rb") as img_file:
+                # img_to_store = FileSaver(img_file)
+                team.logo.save(f"{team.name}.png", img_file)
+                team.save()
 
     teams = [team.id for team in Team.objects.all()]
     positions = [pos.id for pos in PlayerPosition.objects.exclude(name__iexact="goalie")]

@@ -15,7 +15,7 @@ import environ
 import os
 
 env = environ.Env(
-    DEBUG=(bool, True),
+    DEBUG=(bool, False),
     SECRET_KEY=(str, 'django-insecure-default-key-for-development-only'),
     ALLOWED_HOSTS=(str, 'localhost,127.0.0.1'),
     CSRF_TRUSTED_ORIGINS=(str, 'http://localhost:8000,http://127.0.0.1:8000'),
@@ -185,35 +185,35 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-# if DEBUG:
+if DEBUG:
 
-#     MEDIA_ROOT = BASE_DIR / 'media'
-#     MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
+    MEDIA_URL = '/media/'
 
-# else:
+    STATIC_URL = 'static/'
+    STATIC_ROOT = BASE_DIR / env('STATIC_ROOT_DIR')
 
-STORAGES = {
-    "default": {
-        "BACKEND": "storages.backends.s3.S3Storage",
-        "OPTIONS": {
-            "bucket_name": "my-hockey-app-backend-storage",
-            "location": "media"
+else:
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "bucket_name": "my-hockey-app-backend-storage",
+                "location": "media"
+            },
         },
-    },
-    "staticfiles": {
-        "BACKEND": "storages.backends.s3.S3Storage",
-        "OPTIONS": {
-            "bucket_name": "my-hockey-app-backend-storage",
-            "location": "static",
-        },
-    },
-}
+        "staticfiles": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "bucket_name": "my-hockey-app-backend-storage",
+                "location": "static",
+            },
+        }
+    }
 
-MEDIA_URL = f'https://{STORAGES["default"]["OPTIONS"]["bucket_name"]}.s3.amazonaws.com/{STORAGES["default"]["OPTIONS"]["location"]}/'
-STATIC_URL = f'https://{STORAGES["staticfiles"]["OPTIONS"]["bucket_name"]}.s3.amazonaws.com/{STORAGES["staticfiles"]["OPTIONS"]["location"]}/'
-
-# STATIC_URL = 'static/'
-# STATIC_ROOT = BASE_DIR / env('STATIC_ROOT_DIR')
+    MEDIA_URL = f'https://{STORAGES["default"]["OPTIONS"]["bucket_name"]}.s3.amazonaws.com/{STORAGES["default"]["OPTIONS"]["location"]}/'
+    STATIC_URL = f'https://{STORAGES["staticfiles"]["OPTIONS"]["bucket_name"]}.s3.amazonaws.com/{STORAGES["staticfiles"]["OPTIONS"]["location"]}/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
