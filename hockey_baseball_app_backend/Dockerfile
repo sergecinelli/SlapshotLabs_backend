@@ -1,5 +1,5 @@
 # Use the official Python runtime image
-FROM python:3.13
+FROM public.ecr.aws/docker/library/python:3.13
  
 # Create the app directory
 RUN mkdir /app
