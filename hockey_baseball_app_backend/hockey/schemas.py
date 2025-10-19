@@ -31,8 +31,17 @@ class GoalieIn(Schema):
     first_name: str
     last_name: str
     birth_year: datetime.date
-    wins: int
-    losses: int
+    player_bio: str | None = None
+    birthplace_country: str
+    birthplace_region: str
+    birthplace_city: str
+    address_country: str
+    address_region: str
+    address_city: str
+    wins: int | None = None
+    losses: int | None = None
+    penalty_minutes: int
+    analysis: str | None = None
 
 class GoalieOut(GoalieIn):
     id: int
@@ -44,11 +53,14 @@ class GoalieOut(GoalieIn):
     goals: int
     assists: int
 
+    save_percents: int = Field(0, description="Save %.")
+    """Save % field."""
+
     short_handed_goals_against: int = Field(0, description="SHGA.")
-    """SHG field."""
+    """SHGA field."""
     
     power_play_goals_against: int = Field(0, description="PPGA.")
-    """PPG field."""
+    """PPGA field."""
 
     shots_on_goal_per_game: float
     points: int
@@ -63,12 +75,19 @@ class PlayerIn(Schema):
     first_name: str
     last_name: str
     birth_year: datetime.date
-    penalties_drawn: int
-    penalties_taken: int
-
-class PlayerUpdate(PlayerIn):
-    class Meta:
-        fields_optional = "__all__"
+    player_bio: str | None = None
+    birthplace_country: str
+    birthplace_region: str
+    birthplace_city: str
+    address_country: str
+    address_region: str
+    address_city: str
+    penalties_drawn: int | None = None
+    penalty_minutes: int | None = None
+    faceoffs: int | None = None
+    faceoffs_won: int | None = None
+    turnovers: int | None = None
+    analysis: str | None = None
 
 class PlayerOut(PlayerIn):
     id: int
@@ -82,6 +101,16 @@ class PlayerOut(PlayerIn):
     penalty_kill_diff: int
     five_on_five_diff: int
     overall_diff: int
+
+    faceoff_win_percents: int = Field(0, description="Faceoff Win %.")
+    """Faceoff Win % field."""
+
+    short_handed_goals: int = Field(0, description="SHG.")
+    """SHG field."""
+    
+    power_play_goals: int = Field(0, description="PPG.")
+    """PPG field."""
+
     shots_on_goal_per_game: float
     points: int
 
@@ -173,10 +202,10 @@ class TurnoversOut(TurnoversIn):
 
 class GameIn(Schema):
     home_team_id: int
-    home_goals: int
+    home_goals: int | None = None
     home_team_goalie_id: int | None = None
     away_team_id: int
-    away_goals: int
+    away_goals: int | None = None
     away_team_goalie_id: int | None = None
     game_type_id: int
     tournament_name: str | None = None

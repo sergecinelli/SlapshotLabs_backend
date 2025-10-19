@@ -13,7 +13,7 @@ from django.core.files.storage import default_storage
 from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
-from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, GameEventIn, GameEventOut, GameGoalieIn, GameGoalieOut, GameIn, GameOut, GamePlayerIn, GamePlayerOut, GamePlayersIn, GamePlayersOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, PlayerPositionOut, GoalieIn, GoalieOut, PlayerIn, PlayerUpdate, PlayerOut, SeasonIn, SeasonOut, ShotsIn,
+from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, GameEventIn, GameEventOut, GameGoalieIn, GameGoalieOut, GameIn, GameOut, GamePlayerIn, GamePlayerOut, GamePlayersIn, GamePlayersOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, PlayerPositionOut, GoalieIn, GoalieOut, PlayerIn, PlayerOut, SeasonIn, SeasonOut, ShotsIn,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn)
 from .models import Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, OffensiveZoneEntry, Player, PlayerPosition, Season, Shots, Team, TeamLevel, TeamSeason, Turnovers
 from .utils import api_response_templates as resp
@@ -40,13 +40,15 @@ def get_goalie(request: HttpRequest, goalie_id: int):
     return goalie
 
 @router.post('/goalie', response={200: ObjectId, 400: Message, 503: Message})
-def add_goalie(request: HttpRequest, data: GoalieIn):
+def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] = None):
     goalie_position = PlayerPosition.objects.filter(name__iexact="goalie")
     if len(goalie_position) == 0:
         return 503, {'message': "Can't reconcile dependencies. Please try again later."}
     position_id = goalie_position[0].id
     try:
-        goalie = Goalie.objects.create(position_id=position_id, **data.dict())
+        goalie = Goalie(position_id=position_id, **data.dict())
+        goalie.photo = photo
+        goalie.save()
     except IntegrityError as e:
         return resp.entry_already_exists("Goalie", str(e))
     return {"id": goalie.id}
@@ -78,15 +80,17 @@ def get_player(request: HttpRequest, player_id: int):
     return player
 
 @router.post('/player', response={200: ObjectId, 400: Message})
-def add_player(request: HttpRequest, data: PlayerIn):
+def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] = None):
     try:
-        player = Player.objects.create(**data)
+        player = Player(**data.dict())
+        player.photo = photo
+        player.save()
     except IntegrityError as e:
         return resp.entry_already_exists("Player", str(e))
     return {"id": player.id}
 
 @router.patch("/player/{player_id}", response={204: None})
-def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerUpdate]):
+def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn]):
     player = get_object_or_404(Player, id=player_id)
     for attr, value in data.items():
         setattr(player, attr, value)
