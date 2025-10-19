@@ -41,12 +41,8 @@ def get_goalie(request: HttpRequest, goalie_id: int):
 
 @router.post('/goalie', response={200: ObjectId, 400: Message, 503: Message})
 def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] = None):
-    goalie_position = PlayerPosition.objects.filter(name__iexact="goalie")
-    if len(goalie_position) == 0:
-        return 503, {'message': "Can't reconcile dependencies. Please try again later."}
-    position_id = goalie_position[0].id
     try:
-        goalie = Goalie(position_id=position_id, **data.dict())
+        goalie = Goalie(**data.dict())
         goalie.photo = photo
         goalie.save()
     except IntegrityError as e:

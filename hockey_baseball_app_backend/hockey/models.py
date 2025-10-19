@@ -84,7 +84,7 @@ class TeamSeason(models.Model):
     ties = models.IntegerField()
 
     def __str__(self):
-        return f'{self.team.name} - {self.season}/{(self.season + 1)}'
+        return f'{self.team.name} - {self.season.name}'
 
     class Meta:
         db_table = "team_seasons"
@@ -102,9 +102,8 @@ class PlayerPosition(models.Model):
 class Goalie(PlayerPersonalInformationMixin, models.Model):
 
     team = models.ForeignKey(Team, null=True, on_delete=models.SET_NULL)
-    position = models.ForeignKey(PlayerPosition, on_delete=models.RESTRICT)
-    height = models.IntegerField()
-    weight = models.IntegerField()
+    height = models.IntegerField("Height, inches")
+    weight = models.IntegerField("Weight, lbs")
     shoots = models.CharField(max_length=1, choices=[('L', 'Left Shot'), ('R', 'Right Shot')])
     jersey_number = models.IntegerField()
     first_name = models.CharField(max_length=150)
@@ -164,7 +163,7 @@ class GoalieTransaction(models.Model):
     description = models.TextField()
 
     def __str__(self):
-        return f"{self.goalie.first_name} {self.goalie.last_name} - {self.season}/{(self.season + 1)}"
+        return f"{self.goalie.first_name} {self.goalie.last_name} - {self.season.name}"
 
     class Meta:
         db_table = "goalie_transactions"
@@ -173,8 +172,8 @@ class Player(PlayerPersonalInformationMixin, models.Model):
 
     team = models.ForeignKey(Team, null=True, on_delete=models.SET_NULL)
     position = models.ForeignKey(PlayerPosition, on_delete=models.RESTRICT)
-    height = models.IntegerField()
-    weight = models.IntegerField()
+    height = models.IntegerField("Height, inches")
+    weight = models.IntegerField("Weight, lbs")
     shoots = models.CharField(max_length=1, choices=[('L', 'Left Shot'), ('R', 'Right Shot')])
     number = models.IntegerField()
     first_name = models.CharField(max_length=150)

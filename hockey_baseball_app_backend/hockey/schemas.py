@@ -45,7 +45,6 @@ class GoalieIn(Schema):
 
 class GoalieOut(GoalieIn):
     id: int
-    position_id: int
     shots_on_goal: int
     saves: int
     goals_against: int
