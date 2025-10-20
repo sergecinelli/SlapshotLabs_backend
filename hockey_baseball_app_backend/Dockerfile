@@ -45,7 +45,7 @@ exec uvicorn hockey_baseball_app_backend.asgi:application --host 0.0.0.0 --port 
 chmod +x /app/start.sh
 
 # Add health check for App Runner
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=5s --timeout=30s --start-period=5s --retries=1 \
   CMD curl -f http://localhost:8000/health/ || exit 1
 
 # Run startup script
