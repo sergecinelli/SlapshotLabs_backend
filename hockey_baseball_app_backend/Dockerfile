@@ -7,8 +7,8 @@ RUN mkdir /app
 # Set the working directory inside the container
 WORKDIR /app
 
-# Install curl for health checks
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# RUN apt-get update
+# RUN apt-get install -y necessary_package
  
 # Set environment variables 
 # Prevents Python from writing pyc files to disk
@@ -22,11 +22,11 @@ RUN pip install --upgrade pip
 RUN pip install uvicorn
  
 # Copy requirements first to leverage Docker cache
-COPY hockey_baseball_app_backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the Django project to the container
-COPY hockey_baseball_app_backend/ /app/
+COPY . /app/
 
 # Create data directory for mounted database
 # RUN mkdir -p /app/data
@@ -36,17 +36,11 @@ EXPOSE 8000
 
 # Create startup script
 RUN echo '#!/bin/sh\n\
-echo "Starting Django application..."\n\
 python manage.py collectstatic --noinput\n\
 python manage.py migrate\n\
 python manage.py migrate hockey --database hockey\n\
-echo "Starting uvicorn server on port ${PORT:-8000}..."\n\
-exec uvicorn hockey_baseball_app_backend.asgi:application --host 0.0.0.0 --port ${PORT:-8000} --log-level info' > /app/start.sh && \
+exec uvicorn hockey_baseball_app_backend.asgi:application --host 0.0.0.0 --port 8000 --log-level debug' > /app/start.sh && \
 chmod +x /app/start.sh
-
-# Add health check for App Runner
-HEALTHCHECK --interval=5s --timeout=30s --start-period=5s --retries=1 \
-  CMD curl -f http://localhost:8000/health/ || exit 1
 
 # Run startup script
 CMD ["/app/start.sh"]
