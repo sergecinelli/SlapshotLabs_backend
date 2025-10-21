@@ -21,6 +21,7 @@ env = environ.Env(
     ALLOWED_HOSTS=(str, 'localhost,127.0.0.1'),
     CORS_ALLOWED_ORIGINS=(str, 'http://localhost:8000,http://127.0.0.1:8000'),
     CSRF_TRUSTED_ORIGINS=(str, 'http://localhost:8000,http://127.0.0.1:8000'),
+    CSRF_COOKIE_DOMAIN=(str, 'localhost'),
     STATIC_ROOT_DIR=(str, 'staticfiles'),
     DB_NAME=(str, 'postgres'),
     DB_USER=(str, 'postgres'),
@@ -52,6 +53,7 @@ USE_LOCAL_STORAGE = env('USE_LOCAL_STORAGE')
 ALLOWED_HOSTS = env('ALLOWED_HOSTS').split(',')
 
 CSRF_TRUSTED_ORIGINS = env('CSRF_TRUSTED_ORIGINS').split(',')
+CSRF_COOKIE_DOMAIN = env('CSRF_COOKIE_DOMAIN')
 
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = env('CORS_ALLOWED_ORIGINS').split(',')
