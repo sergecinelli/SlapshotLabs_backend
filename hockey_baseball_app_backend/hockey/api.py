@@ -39,6 +39,11 @@ def get_goalie(request: HttpRequest, goalie_id: int):
     goalie = get_object_or_404(Goalie, id=goalie_id)
     return goalie
 
+@router.get('/goalie/{goalie_id}/photo', response=bytes)
+def get_goalie_photo(request: HttpRequest, goalie_id: int):
+    goalie = get_object_or_404(Goalie, id=goalie_id)
+    return FileResponse(goalie.photo.open())
+
 @router.post('/goalie', response={200: ObjectId, 400: Message, 503: Message})
 def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] = None):
     try:
@@ -50,11 +55,16 @@ def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] =
     return {"id": goalie.id}
 
 @router.patch("/goalie/{goalie_id}", response={204: None})
-def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn]):
+def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn], photo: File[UploadedFile] = None):
     goalie = get_object_or_404(Goalie, id=goalie_id)
     for attr, value in data.items():
         setattr(goalie, attr, value)
-    goalie.save()
+    if photo is not None:
+        goalie.photo = photo
+    try:
+        goalie.save()
+    except IntegrityError:
+        return resp.entry_already_exists("Goalie")
     return 204, None
 
 @router.delete("/goalie/{goalie_id}", response={204: None})
@@ -75,6 +85,11 @@ def get_player(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player, id=player_id)
     return player
 
+@router.get('/player/{player_id}/photo', response=bytes)
+def get_player_photo(request: HttpRequest, player_id: int):
+    player = get_object_or_404(Player, id=player_id)
+    return FileResponse(player.photo.open())
+
 @router.post('/player', response={200: ObjectId, 400: Message})
 def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] = None):
     try:
@@ -86,11 +101,16 @@ def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] =
     return {"id": player.id}
 
 @router.patch("/player/{player_id}", response={204: None})
-def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn]):
+def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn], photo: File[UploadedFile] = None):
     player = get_object_or_404(Player, id=player_id)
     for attr, value in data.items():
         setattr(player, attr, value)
-    player.save()
+    if photo is not None:
+        player.photo = photo
+    try:
+        player.save()
+    except IntegrityError:
+        return resp.entry_already_exists("Player")
     return 204, None
 
 @router.delete("/player/{player_id}", response={204: None})
