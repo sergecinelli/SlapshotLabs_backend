@@ -15,7 +15,25 @@ import environ
 import os
 
 env = environ.Env(
-    DEBUG=(bool, False)
+    DEBUG=(bool, False),
+    USE_LOCAL_STORAGE=(bool, False),
+    SECRET_KEY=(str, 'django-insecure-default-key-for-development-only'),
+    ALLOWED_HOSTS=(str, 'localhost,127.0.0.1'),
+    CORS_ALLOWED_ORIGINS=(str, 'http://localhost:8000,http://127.0.0.1:8000'),
+    CSRF_TRUSTED_ORIGINS=(str, 'http://localhost:8000,http://127.0.0.1:8000'),
+    CSRF_COOKIE_DOMAIN=(str, 'localhost'),
+    STATIC_ROOT_DIR=(str, 'staticfiles'),
+    DB_NAME=(str, 'postgres'),
+    DB_USER=(str, 'postgres'),
+    DB_HOST=(str, 'localhost'),
+    DB_PORT=(str, '5432'),
+    DB_PASSWORD=(str, ''),
+    DB_NAME_HOCKEY=(str, 'hockey_db'),
+    EMAIL_HOST=(str, 'localhost'),
+    EMAIL_PORT=(int, 587),
+    EMAIL_HOST_USER=(str, ''),
+    EMAIL_HOST_PASSWORD=(str, ''),
+    DEFAULT_FROM_EMAIL=(str, 'noreply@example.com'),
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -29,18 +47,16 @@ SECRET_KEY = env('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
 
+# If True, reads media and static files from the host machine.
+USE_LOCAL_STORAGE = env('USE_LOCAL_STORAGE')
+
 ALLOWED_HOSTS = env('ALLOWED_HOSTS').split(',')
 
 CSRF_TRUSTED_ORIGINS = env('CSRF_TRUSTED_ORIGINS').split(',')
+CSRF_COOKIE_DOMAIN = env('CSRF_COOKIE_DOMAIN')
 
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:4200",
-    "http://127.0.0.1:4200",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "https://hokey-baseball-app-dev.onrender.com",
-]
+CORS_ALLOWED_ORIGINS = env('CORS_ALLOWED_ORIGINS').split(',')
 
 # Allow credentials (cookies, authorization headers, etc.) to be included in CORS requests
 CORS_ALLOW_CREDENTIALS = True
@@ -170,11 +186,35 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / env('STATIC_ROOT_DIR')
+if USE_LOCAL_STORAGE:
 
-MEDIA_ROOT = BASE_DIR / 'media'
-MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
+    MEDIA_URL = '/media/'
+
+    STATIC_URL = 'static/'
+    STATIC_ROOT = BASE_DIR / env('STATIC_ROOT_DIR')
+
+else:
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "bucket_name": "my-hockey-app-backend-storage",
+                "location": "media"
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "bucket_name": "my-hockey-app-backend-storage",
+                "location": "static",
+            },
+        }
+    }
+
+    MEDIA_URL = f'https://{STORAGES["default"]["OPTIONS"]["bucket_name"]}.s3.amazonaws.com/{STORAGES["default"]["OPTIONS"]["location"]}/'
+    STATIC_URL = f'https://{STORAGES["staticfiles"]["OPTIONS"]["bucket_name"]}.s3.amazonaws.com/{STORAGES["staticfiles"]["OPTIONS"]["location"]}/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

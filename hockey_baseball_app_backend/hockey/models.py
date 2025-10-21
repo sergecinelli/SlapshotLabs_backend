@@ -1,6 +1,22 @@
 from django.db import models
 from django.db.models import Case, ExpressionWrapper, When, Value, F
 
+class PlayerPersonalInformationMixin(models.Model):
+
+    birth_year = models.DateField()
+    player_bio = models.TextField(null=True, blank=True)
+
+    birthplace_country = models.CharField(max_length=150)
+    birthplace_region = models.CharField(max_length=150)
+    birthplace_city = models.CharField(max_length=150)
+
+    address_country = models.CharField(max_length=150)
+    address_region = models.CharField(max_length=150)
+    address_city = models.CharField(max_length=150)
+
+    class Meta:
+        abstract = True
+
 class TeamLevel(models.Model):
 
     name = models.CharField(max_length=50)
@@ -68,7 +84,7 @@ class TeamSeason(models.Model):
     ties = models.IntegerField()
 
     def __str__(self):
-        return f'{self.team.name} - {self.season}/{(self.season + 1)}'
+        return f'{self.team.name} - {self.season.name}'
 
     class Meta:
         db_table = "team_seasons"
@@ -83,25 +99,25 @@ class PlayerPosition(models.Model):
     class Meta:
         db_table = "player_positions"
 
-class Goalie(models.Model):
+class Goalie(PlayerPersonalInformationMixin, models.Model):
 
     team = models.ForeignKey(Team, null=True, on_delete=models.SET_NULL)
-    position = models.ForeignKey(PlayerPosition, on_delete=models.RESTRICT)
-    height = models.IntegerField()
-    weight = models.IntegerField()
+    height = models.IntegerField("Height, inches")
+    weight = models.IntegerField("Weight, lbs")
     shoots = models.CharField(max_length=1, choices=[('L', 'Left Shot'), ('R', 'Right Shot')])
     jersey_number = models.IntegerField()
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
-    birth_year = models.DateField()
+    photo = models.ImageField(upload_to='goalie_photo/', null=True, blank=True)
     shots_on_goal = models.IntegerField(default=0)
     saves = models.IntegerField(default=0)
     goals_against = models.IntegerField(default=0)
     games_played = models.IntegerField(default=0)
-    wins = models.IntegerField()
-    losses = models.IntegerField()
+    wins = models.IntegerField(default=0)
+    losses = models.IntegerField(default=0)
     goals = models.IntegerField(default=0)
     assists = models.IntegerField(default=0)
+    penalty_minutes = models.IntegerField(default=0)
 
     short_handed_goals_against = models.IntegerField("SHGA", default=0)
     """SHGA field."""
@@ -110,6 +126,15 @@ class Goalie(models.Model):
     """PPGA field."""
 
     saves_above_avg = models.IntegerField(default=0)    # Not used.
+
+    analysis = models.TextField(null=True, blank=True)
+
+    save_percents = models.GeneratedField(
+        expression=Case(When(games_played__gt=0, then=((F('saves') / (F('saves') + F('goals_against'))) * 100)),
+                        default=Value(0), output_field=models.FloatField()),
+        output_field=models.FloatField(),
+        db_persist=True,
+        verbose_name="Save %")
 
     shots_on_goal_per_game = models.GeneratedField(
         expression=Case(When(games_played__gt=0, then=(F('shots_on_goal') / F('games_played'))),
@@ -138,30 +163,30 @@ class GoalieTransaction(models.Model):
     description = models.TextField()
 
     def __str__(self):
-        return f"{self.goalie.first_name} {self.goalie.last_name} - {self.season}/{(self.season + 1)}"
+        return f"{self.goalie.first_name} {self.goalie.last_name} - {self.season.name}"
 
     class Meta:
         db_table = "goalie_transactions"
 
-class Player(models.Model):
+class Player(PlayerPersonalInformationMixin, models.Model):
 
     team = models.ForeignKey(Team, null=True, on_delete=models.SET_NULL)
     position = models.ForeignKey(PlayerPosition, on_delete=models.RESTRICT)
-    height = models.IntegerField()
-    weight = models.IntegerField()
+    height = models.IntegerField("Height, inches")
+    weight = models.IntegerField("Weight, lbs")
     shoots = models.CharField(max_length=1, choices=[('L', 'Left Shot'), ('R', 'Right Shot')])
     number = models.IntegerField()
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
-    birth_year = models.DateField()
+    photo = models.ImageField(upload_to='player_photo/', null=True, blank=True)
     shots_on_goal = models.IntegerField(default=0)
     games_played = models.IntegerField(default=0)
     goals = models.IntegerField(default=0)
     assists = models.IntegerField(default=0)
     scoring_chances = models.IntegerField(default=0)
     blocked_shots = models.IntegerField(default=0)
-    penalties_drawn = models.IntegerField()
-    penalties_taken = models.IntegerField()
+    penalties_drawn = models.IntegerField(default=0)
+    penalty_minutes = models.IntegerField(default=0)
 
     power_play_goals_diff = models.IntegerField("PP +/-", default=0)
     """PP +/- field."""
@@ -174,6 +199,26 @@ class Player(models.Model):
 
     overall_diff = models.IntegerField("Overall +/-", default=0)
     """Overall +/- field."""
+
+    short_handed_goals = models.IntegerField("SHG", default=0)
+    """SHG field."""
+
+    power_play_goals = models.IntegerField("PPG", default=0)
+    """PPG field."""
+
+    faceoffs = models.IntegerField(default=0)
+    faceoffs_won = models.IntegerField(default=0)
+
+    turnovers = models.IntegerField(default=0)
+
+    analysis = models.TextField(null=True, blank=True)
+
+    faceoff_win_percents = models.GeneratedField(
+        expression=Case(When(games_played__gt=0, then=((F('faceoffs_won') / F('faceoffs'))* 100)),
+                        default=Value(0), output_field=models.FloatField()),
+        output_field=models.FloatField(),
+        db_persist=True,
+        verbose_name="Faceoff Win %")
 
     shots_on_goal_per_game = models.GeneratedField(
         expression=Case(When(games_played__gt=0, then=(F('shots_on_goal') / F('games_played'))),
@@ -310,10 +355,10 @@ class Game(models.Model):
     ]
 
     home_team = models.ForeignKey(Team, related_name='home_games', on_delete=models.RESTRICT)
-    home_goals = models.IntegerField()
+    home_goals = models.IntegerField(default=0)
     home_team_goalie = models.ForeignKey(Goalie, related_name='home_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
     away_team = models.ForeignKey(Team, related_name='away_games', on_delete=models.RESTRICT)
-    away_goals = models.IntegerField()
+    away_goals = models.IntegerField(default=0)
     away_team_goalie = models.ForeignKey(Goalie, related_name='away_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
     game_type = models.ForeignKey(GameType, on_delete=models.RESTRICT)
     tournament_name = models.CharField(max_length=150, null=True, blank=True)
@@ -349,9 +394,9 @@ class GamePlayer(models.Model):
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     player = models.ForeignKey(Player, on_delete=models.RESTRICT)
-    goals = models.IntegerField()
-    assists = models.IntegerField()
-    shots = models.IntegerField()
+    goals = models.IntegerField(default=0)
+    assists = models.IntegerField(default=0)
+    shots = models.IntegerField(default=0)
 
     def __str__(self):
         return f'{str(self.game)} - {self.player.first_name} {self.player.last_name}'
@@ -363,8 +408,8 @@ class GameGoalie(models.Model):
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT)
-    goals_against = models.IntegerField()
-    saves = models.IntegerField()
+    goals_against = models.IntegerField(default=0)
+    saves = models.IntegerField(default=0)
 
     def __str__(self):
         return f'{str(self.game)} - {self.goalie.first_name} {self.goalie.last_name}'
@@ -386,17 +431,20 @@ class GameEvents(models.Model):
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     number = models.IntegerField()
-    event_name = models.ForeignKey(GameEventName, on_delete=models.CASCADE)
+    event_name = models.ForeignKey(GameEventName, on_delete=models.RESTRICT)
     time = models.TimeField(auto_now=False, auto_now_add=False)
     period = models.ForeignKey(GamePeriod, on_delete=models.RESTRICT)
     team = models.ForeignKey(Team, on_delete=models.RESTRICT)
     players = models.ManyToManyField(Player)
-    goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT)
-    ice_top_offset = models.IntegerField()
-    ice_left_offset = models.IntegerField()
-    net_top_offset = models.IntegerField()
-    net_left_offset = models.IntegerField()
-    youtube_link = models.CharField("YouTube Link", max_length=150, null=True, blank=True)
+    goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT, null=True)
+
+    # Spray chart points.
+    ice_top_offset = models.IntegerField(null=True, blank=True)
+    ice_left_offset = models.IntegerField(null=True, blank=True)
+    net_top_offset = models.IntegerField(null=True, blank=True)
+    net_left_offset = models.IntegerField(null=True, blank=True)
+
+    youtube_link = models.CharField("YouTube Link", max_length=1000, null=True, blank=True)
 
     def __str__(self):
         return f'{str(self.game)} - {self.time}'
