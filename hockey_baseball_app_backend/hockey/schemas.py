@@ -40,7 +40,7 @@ class GoalieIn(Schema):
     address_city: str
     wins: int | None = None
     losses: int | None = None
-    penalty_minutes: int
+    penalty_minutes: int | None = None
     analysis: str | None = None
 
 class GoalieOut(GoalieIn):
