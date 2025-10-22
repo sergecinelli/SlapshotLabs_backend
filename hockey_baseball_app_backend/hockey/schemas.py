@@ -40,7 +40,6 @@ class GoalieIn(Schema):
     address_city: str
     wins: int | None = None
     losses: int | None = None
-    penalty_minutes: int | None = None
     analysis: str | None = None
 
 class GoalieOut(GoalieIn):
@@ -51,6 +50,37 @@ class GoalieOut(GoalieIn):
     games_played: int
     goals: int
     assists: int
+    penalty_minutes: datetime.timedelta
+
+    save_percents: int = Field(0, description="Save %.")
+    """Save % field."""
+
+    short_handed_goals_against: int = Field(0, description="SHGA.")
+    """SHGA field."""
+    
+    power_play_goals_against: int = Field(0, description="PPGA.")
+    """PPGA field."""
+
+    shots_on_goal_per_game: float
+    points: int
+
+class GoalieSeasonsGet(Schema):
+    goalie_id: int
+    season_ids: list[int]
+
+class GoalieSeasonOut(Schema):
+    goalie_id: int
+    season_id: int
+
+    shots_on_goal: int
+    saves: int
+    goals_against: int
+    games_played: int
+    wins: int
+    losses: int
+    goals: int
+    assists: int
+    penalty_minutes: datetime.timedelta
 
     save_percents: int = Field(0, description="Save %.")
     """Save % field."""
@@ -81,11 +111,6 @@ class PlayerIn(Schema):
     address_country: str
     address_region: str
     address_city: str
-    penalties_drawn: int | None = None
-    penalty_minutes: int | None = None
-    faceoffs: int | None = None
-    faceoffs_won: int | None = None
-    turnovers: int | None = None
     analysis: str | None = None
 
 class PlayerOut(PlayerIn):
@@ -100,6 +125,11 @@ class PlayerOut(PlayerIn):
     penalty_kill_diff: int
     five_on_five_diff: int
     overall_diff: int
+    penalties_drawn: datetime.timedelta
+    penalty_minutes: datetime.timedelta
+    faceoffs: int
+    faceoffs_won: int
+    turnovers: int
 
     faceoff_win_percents: int = Field(0, description="Faceoff Win %.")
     """Faceoff Win % field."""
@@ -110,6 +140,42 @@ class PlayerOut(PlayerIn):
     power_play_goals: int = Field(0, description="PPG.")
     """PPG field."""
 
+    shots_on_goal_per_game: float
+    points: int
+
+class PlayerSeasonsGet(Schema):
+    player_id: int
+    season_ids: list[int]
+
+class PlayerSeasonOut(Schema):
+    player_id: int
+    season_id: int
+
+    shots_on_goal: int
+    games_played: int
+    goals: int
+    assists: int
+    scoring_chances: int
+    blocked_shots: int
+    power_play_goals_diff: int
+    penalty_kill_diff: int
+    five_on_five_diff: int
+    overall_diff: int
+    penalties_drawn: datetime.timedelta
+    penalty_minutes: datetime.timedelta
+
+    faceoff_win_percents: int = Field(0, description="Faceoff Win %.")
+    """Faceoff Win % field."""
+
+    short_handed_goals: int = Field(0, description="SHG.")
+    """SHG field."""
+    
+    power_play_goals: int = Field(0, description="PPG.")
+    """PPG field."""
+
+    faceoffs: int
+    faceoffs_won: int
+    turnovers: int
     shots_on_goal_per_game: float
     points: int
 
@@ -273,7 +339,8 @@ class GameEventIn(Schema):
     time: datetime.time
     period_id: int
     team_id: int
-    players: list[int] = Field(..., description="List of players IDs.")
+    player_id: int | None = None
+    player_2_id: int | None = None
     goalie_id: int | None = None
 
     # Spray chart points.
@@ -282,7 +349,15 @@ class GameEventIn(Schema):
     net_top_offset: int | None = None
     net_left_offset: int | None = None
 
+    note: str | None = None
+    time_length: datetime.timedelta | None = None
+
     youtube_link: str | None = None
+
+    class Config(Schema.Config):
+        json_encoders = {
+            datetime.timedelta: lambda v: f"{v.total_seconds() // 60}:{v.total_seconds() % 60}"
+        }
 
 class GameEventOut(GameEventIn):
     id: int

@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 from django.conf import settings
 from django.forms.models import model_to_dict
 from django.db import IntegrityError, transaction
@@ -13,10 +14,17 @@ from django.core.files.storage import default_storage
 from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
-from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, GameEventIn, GameEventOut, GameGoalieIn, GameGoalieOut, GameIn, GameOut, GamePlayerIn, GamePlayerOut, GamePlayersIn, GamePlayersOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, PlayerPositionOut, GoalieIn, GoalieOut, PlayerIn, PlayerOut, SeasonIn, SeasonOut, ShotsIn,
+
+from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, GameEventIn, GameEventOut, GameGoalieIn, GameGoalieOut,
+                      GameIn, GameOut, GamePlayerIn, GamePlayerOut, GamePlayersIn, GamePlayersOut, GoalieSeasonOut,
+                      GoalieSeasonsGet, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, PlayerPositionOut, GoalieIn,
+                      GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn)
-from .models import Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, OffensiveZoneEntry, Player, PlayerPosition, Season, Shots, Team, TeamLevel, TeamSeason, Turnovers
+from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
+                     GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, OffensiveZoneEntry, Player,
+                     PlayerPosition, PlayerSeason, Season, Shots, Team, TeamLevel, TeamSeason, Turnovers)
 from .utils import api_response_templates as resp
+from .utils.db_utils import form_goalie_out, form_player_out, get_current_season
 
 router = Router(tags=["Hockey"])
 
@@ -29,15 +37,20 @@ def get_player_positions(request: HttpRequest):
 
 @router.get('/goalie/list', response=list[GoalieOut])
 def get_goalies(request: HttpRequest, team_id: int | None = None):
+    current_season = get_current_season()
+    goalies_out: list[GoalieOut] = []
     goalies = Goalie.objects.all()
     if team_id is not None:
         goalies = goalies.filter(team_id=team_id)
-    return goalies
+    for goalie in goalies:
+        goalies_out.append(form_goalie_out(goalie, current_season))
+    return goalies_out
 
 @router.get('/goalie/{goalie_id}', response=GoalieOut)
 def get_goalie(request: HttpRequest, goalie_id: int):
     goalie = get_object_or_404(Goalie, id=goalie_id)
-    return goalie
+    current_season = get_current_season()
+    return form_goalie_out(goalie, current_season)
 
 @router.get('/goalie/{goalie_id}/photo', response=bytes)
 def get_goalie_photo(request: HttpRequest, goalie_id: int):
@@ -73,17 +86,26 @@ def delete_goalie(request: HttpRequest, goalie_id: int):
     goalie.delete()
     return 204, None
 
+@router.post("/goalie/seasons", response=list[GoalieSeasonOut])
+def get_goalie_seasons(request: HttpRequest, data: GoalieSeasonsGet):
+    return GoalieSeason.objects.filter(goalie_id=data.goalie_id, season_id__in=data.season_ids)
+
 @router.get('/player/list', response=list[PlayerOut])
 def get_players(request: HttpRequest, team_id: int | None = None):
+    current_season = get_current_season()
+    players_out: list[PlayerOut] = []
     players = Player.objects.all()
     if team_id is not None:
         players = players.filter(team_id=team_id)
-    return players
+    for player in players:
+        players_out.append(form_player_out(player, current_season))
+    return players_out
 
 @router.get('/player/{player_id}', response=PlayerOut)
 def get_player(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player, id=player_id)
-    return player
+    current_season = get_current_season()
+    return form_player_out(player, current_season)
 
 @router.get('/player/{player_id}/photo', response=bytes)
 def get_player_photo(request: HttpRequest, player_id: int):
@@ -118,6 +140,10 @@ def delete_player(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player, id=player_id)
     player.delete()
     return 204, None
+
+@router.post("/player/seasons", response=list[PlayerSeasonOut])
+def get_player_seasons(request: HttpRequest, data: PlayerSeasonsGet):
+    return PlayerSeason.objects.filter(player_id=data.player_id, season_id__in=data.season_ids)
 
 # endregion
 
@@ -187,9 +213,11 @@ def get_season(request: HttpRequest, season_id: int):
     season = get_object_or_404(Season, id=season_id)
     return season
 
-@router.post('/season', response=ObjectId)
+@router.post('/season', response={200: ObjectId, 400: Message})
 def add_season(request: HttpRequest, data: SeasonIn):
     try:
+        if not re.match(r'^\d{4} / \d{4}$', data.name):
+            return 400, {"message": "Season name must be in the format 'YYYY / YYYY'."}
         season = Season.objects.create(**data.dict())
     except IntegrityError as e:
         return resp.entry_already_exists("Season", str(e))
@@ -197,6 +225,8 @@ def add_season(request: HttpRequest, data: SeasonIn):
 
 @router.patch("/season/{season_id}", response={204: None})
 def update_season(request: HttpRequest, season_id: int, data: PatchDict[SeasonIn]):
+    if not re.match(r'^\d{4} / \d{4}$', data.name):
+        return 400, {"message": "Season name must be in the format 'YYYY / YYYY'."}
     season = get_object_or_404(Season, id=season_id)
     for attr, value in data.items():
         setattr(season, attr, value)
@@ -278,6 +308,11 @@ def get_game(request: HttpRequest, game_id: int):
 @router.post('/game', response={200: GameOut, 400: Message, 503: Message})
 def add_game(request: HttpRequest, data: GameIn):
     try:
+        if data.date.month <= 9:
+            season_start = data.date.year - 1
+        else:
+            season_start = data.date.year
+        game_season = Season.objects.filter(name__startswith=season_start)
         with transaction.atomic():
             home_defensive_zone_exit = DefensiveZoneExit.objects.create()
             home_offensive_zone_entry = OffensiveZoneEntry.objects.create()
@@ -295,6 +330,7 @@ def add_game(request: HttpRequest, data: GameIn):
                         away_offensive_zone_entry=away_offensive_zone_entry,
                         away_shots=away_shots,
                         away_turnovers=away_turnovers,
+                        season=game_season,
                         **data.dict())
     except IntegrityError as e:
         return resp.entry_already_exists("Game", str(e))
@@ -413,7 +449,7 @@ def get_game_event_names(request: HttpRequest):
 
 @router.get('/game-event/list', response=list[GameEventOut])
 def get_game_events(request: HttpRequest, game_id: int | None = None):
-    game_events = GameEvents.objects.prefetch_related('players')
+    game_events = GameEvents.objects.prefetch_related('players').exclude(is_deprecated=True)
     if game_id is not None:
         game_events = game_events.filter(game_id=game_id)
     game_events = game_events.order_by("number").all()
@@ -427,29 +463,41 @@ def get_game_event(request: HttpRequest, game_event_id: int):
 @router.post('/game-event', response={200: ObjectId, 400: Message})
 def add_game_event(request: HttpRequest, data: GameEventIn):
     try:
-        if data.goalie_id is None and len(data.players) == 0:
+        if data.goalie_id is None and data.player_id is None and data.player_2_id is None:
             return 400, {"message": "Please specify goalie ID or player IDs."}
-        # players = Player.objects.filter(id__in=data.players)
         data_new = data.dict()
-        del data_new['players']
         previous_event = GameEvents.objects.filter(game_id=data.game_id).order_by('-number').first()
         data_new['number'] = (1 if previous_event is None else (previous_event.number + 1))
-        with transaction.atomic():
-            game_event = GameEvents.objects.create(**data_new)
-            game_event.players.set(data.players)
-            game_event.save()
+        game_event = GameEvents.objects.create(**data_new)
     except IntegrityError as e:
         return resp.entry_already_exists("Game event", str(e))
     return {"id": game_event.id}
 
 @router.patch("/game-event/{game_event_id}", response={204: None, 400: Message})
 def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[GameEventIn]):
-    game_event = get_object_or_404(GameEvents, id=game_event_id)
-    for attr, value in data.items():
-        setattr(game_event, attr, value)
-    if game_event.goalie is None and len(game_event.players) == 0:
-        return 400, {"message": "Please specify goalie ID or player IDs."}
-    game_event.save()
+    with transaction.atomic():
+
+        game_event = get_object_or_404(GameEvents, id=game_event_id)
+        game_event.is_deprecated = True
+        game_event.save()
+
+        GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
+
+        # Create the copy without deprecation.
+        game_event.pk = None
+        game_event._state.adding = True
+        game_event.save()
+
+        game_event.is_deprecated = False
+
+        for attr, value in data.items():
+            setattr(game_event, attr, value)
+        if game_event.goalie is None and game_event.player is None and game_event.player_2 is None:
+            return 400, {"message": "Please specify goalie ID or player IDs."}
+        game_event.save()
+
+        GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
+
     return 204, None
 
 @router.delete("/game-event/{game_event_id}", response={204: None})
@@ -463,7 +511,8 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
             for i, evt in enumerate(events):
                 evt.number = i + 1
                 evt.save()
-        game_event.delete()
+        game_event.is_deprecated = True
+        game_event.save()
     return 204, None
 
 # endregion
