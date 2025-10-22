@@ -33,11 +33,11 @@ class GoalieIn(Schema):
     birth_year: datetime.date
     player_bio: str | None = None
     birthplace_country: str
-    birthplace_region: str
-    birthplace_city: str
     address_country: str
     address_region: str
     address_city: str
+    address_street: str
+    address_postal_code: str
     wins: int | None = None
     losses: int | None = None
     analysis: str | None = None
@@ -106,11 +106,11 @@ class PlayerIn(Schema):
     birth_year: datetime.date
     player_bio: str | None = None
     birthplace_country: str
-    birthplace_region: str
-    birthplace_city: str
     address_country: str
     address_region: str
     address_city: str
+    address_street: str
+    address_postal_code: str
     analysis: str | None = None
 
 class PlayerOut(PlayerIn):

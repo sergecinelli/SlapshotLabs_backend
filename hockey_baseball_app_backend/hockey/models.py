@@ -4,16 +4,22 @@ from django.db.models import Case, ExpressionWrapper, When, Value, F
 
 class PlayerPersonalInformationMixin(models.Model):
 
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
     birth_year = models.DateField()
     player_bio = models.TextField(null=True, blank=True)
 
     birthplace_country = models.CharField(max_length=150)
-    birthplace_region = models.CharField(max_length=150)
-    birthplace_city = models.CharField(max_length=150)
 
     address_country = models.CharField(max_length=150)
     address_region = models.CharField(max_length=150)
     address_city = models.CharField(max_length=150)
+    address_street = models.TextField()
+    address_postal_code = models.CharField(max_length=50)
+
+    height = models.IntegerField("Height, inches")
+    weight = models.IntegerField("Weight, lbs")
+    shoots = models.CharField(max_length=1, choices=[('L', 'Left Shot'), ('R', 'Right Shot')])
 
     class Meta:
         abstract = True
@@ -103,12 +109,7 @@ class PlayerPosition(models.Model):
 class Goalie(PlayerPersonalInformationMixin, models.Model):
 
     team = models.ForeignKey(Team, null=True, on_delete=models.SET_NULL)
-    height = models.IntegerField("Height, inches")
-    weight = models.IntegerField("Weight, lbs")
-    shoots = models.CharField(max_length=1, choices=[('L', 'Left Shot'), ('R', 'Right Shot')])
     jersey_number = models.IntegerField()
-    first_name = models.CharField(max_length=150)
-    last_name = models.CharField(max_length=150)
     photo = models.ImageField(upload_to='goalie_photo/', null=True, blank=True)
     analysis = models.TextField(null=True, blank=True)
 
@@ -218,12 +219,7 @@ class Player(PlayerPersonalInformationMixin, models.Model):
 
     team = models.ForeignKey(Team, null=True, on_delete=models.SET_NULL)
     position = models.ForeignKey(PlayerPosition, on_delete=models.RESTRICT)
-    height = models.IntegerField("Height, inches")
-    weight = models.IntegerField("Weight, lbs")
-    shoots = models.CharField(max_length=1, choices=[('L', 'Left Shot'), ('R', 'Right Shot')])
     number = models.IntegerField()
-    first_name = models.CharField(max_length=150)
-    last_name = models.CharField(max_length=150)
     photo = models.ImageField(upload_to='player_photo/', null=True, blank=True)
     analysis = models.TextField(null=True, blank=True)
 
@@ -557,6 +553,7 @@ class GameEvents(models.Model):
 
     note = models.TextField(null=True, blank=True)
     time_length = models.DurationField(null=True, blank=True)
+    is_faceoff_won = models.BooleanField(null=True, blank=True)
 
     is_deprecated = models.BooleanField(default=False)
 
