@@ -1,6 +1,7 @@
 import datetime
+import uuid
 from django.db import models
-from django.db.models import Case, ExpressionWrapper, When, Value, F
+from django.db.models import Case, ExpressionWrapper, UniqueConstraint, When, Value, F
 
 class PlayerPersonalInformationMixin(models.Model):
 
@@ -488,6 +489,8 @@ class Game(models.Model):
     away_shots = models.OneToOneField(Shots, related_name='away_game', on_delete=models.RESTRICT)
     away_turnovers = models.OneToOneField(Turnovers, related_name='away_game', on_delete=models.RESTRICT)
 
+    is_deprecated = models.BooleanField(default=False)
+
     def __str__(self):
         return f'"{self.home_team.name}" - "{self.away_team.name}" - {str(self.date)} {str(self.time)}'
 
@@ -500,7 +503,16 @@ class GamePlayer(models.Model):
     player = models.ForeignKey(Player, on_delete=models.RESTRICT)
     goals = models.IntegerField(default=0)
     assists = models.IntegerField(default=0)
-    shots = models.IntegerField(default=0)
+    shots_on_goal = models.IntegerField(default=0)
+    scoring_chances = models.IntegerField(default=0)
+    penalty_minutes = models.DurationField(default=datetime.timedelta(0))
+    turnovers = models.IntegerField(default=0)
+    faceoffs = models.IntegerField(default=0)
+
+    points = models.GeneratedField(
+        expression=F('goals') + F('assists'),
+        output_field=models.IntegerField(),
+        db_persist=True)
 
     def __str__(self):
         return f'{str(self.game)} - {self.player.first_name} {self.player.last_name}'
@@ -513,7 +525,15 @@ class GameGoalie(models.Model):
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT)
     goals_against = models.IntegerField(default=0)
+    shots_against = models.IntegerField(default=0)
     saves = models.IntegerField(default=0)
+
+    save_percents = models.GeneratedField(
+        expression=Case(When(shots_against__gt=0, then=((F('saves') / (F('shots_against'))) * 100)),
+                        default=Value(0), output_field=models.FloatField()),
+        output_field=models.FloatField(),
+        db_persist=True,
+        verbose_name="Save %")
 
     def __str__(self):
         return f'{str(self.game)} - {self.goalie.first_name} {self.goalie.last_name}'
@@ -565,12 +585,22 @@ class GameEvents(models.Model):
 
 class GameEventsAnalysisQueue(models.Model):
 
-    pk = models.CompositePrimaryKey("game_event_id", "date_time")
-    game_event = models.ForeignKey(GameEvents, on_delete=models.RESTRICT)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Only one of the following 2 FKs must be set.
+    game_event = models.ForeignKey(GameEvents, on_delete=models.RESTRICT, null=True)
+    game = models.ForeignKey(Game, on_delete=models.RESTRICT, null=True)
+
     date_time = models.DateTimeField(auto_now=True)
-    
-    action = models.IntegerField()
-    """1 - added, 2 - updated, 3 - deleted."""
+
+    action = models.IntegerField(null=True, blank=True)
+    """1 - added, 2 - updated, 3 - deleted. Used for the game field"""
+
+    error_message = models.TextField(null=True, blank=True)
+    """If the analysis failed, this field will be set to the error message."""
 
     class Meta:
         db_table = "game_events_analysis_queue"
+        constraints = [
+            UniqueConstraint(fields=['game_event', 'game', 'action'], name='unique_game_event_game_action'),
+        ]

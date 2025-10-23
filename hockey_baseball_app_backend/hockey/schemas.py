@@ -289,34 +289,37 @@ class GameIn(Schema):
 class GameOut(GameIn):
     id: int
 
-    home_defensive_zone_exit_id: int = None
-    home_offensive_zone_entry_id: int = None
-    home_shots_id: int = None
-    home_turnovers_id: int = None
+    home_defensive_zone_exit_id: int | None = None
+    home_offensive_zone_entry_id: int | None = None
+    home_shots_id: int | None = None
+    home_turnovers_id: int | None = None
 
-    away_defensive_zone_exit_id: int = None
-    away_offensive_zone_entry_id: int = None
-    away_shots_id: int = None
-    away_turnovers_id: int = None
+    away_defensive_zone_exit_id: int | None = None
+    away_offensive_zone_entry_id: int | None = None
+    away_shots_id: int | None = None
+    away_turnovers_id: int | None = None
 
-class GameGoalieIn(Schema):
-    goals_against: int
-    saves: int
-
-class GameGoalieOut(GameGoalieIn):
+class GameGoalieOut(Schema):
     id: int
     first_name: str
     last_name: str
+    goals_against: int
+    shots_against: int
+    saves: int
+    save_percents: int
 
-class GamePlayerIn(Schema):
+class GamePlayerOut(Schema):
+    id: int
+    first_name: str
+    last_name: str
     goals: int
     assists: int
-    shots: int
-
-class GamePlayerOut(GamePlayerIn):
-    id: int
-    first_name: str
-    last_name: str
+    shots_on_goal: int
+    scoring_chances: int
+    penalty_minutes: datetime.timedelta
+    turnovers: int
+    faceoffs: int
+    points: int
 
 class GamePlayersIn(Schema):
     goalie_ids: list[int]

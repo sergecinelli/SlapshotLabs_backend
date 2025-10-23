@@ -15,8 +15,8 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
-from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, GameEventIn, GameEventOut, GameGoalieIn, GameGoalieOut,
-                      GameIn, GameOut, GamePlayerIn, GamePlayerOut, GamePlayersIn, GamePlayersOut, GoalieSeasonOut,
+from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, GameEventIn, GameEventOut, GameGoalieOut,
+                      GameIn, GameOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GoalieSeasonOut,
                       GoalieSeasonsGet, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn)
@@ -24,7 +24,7 @@ from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEv
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, Season, Shots, Team, TeamLevel, TeamSeason, Turnovers)
 from .utils import api_response_templates as resp
-from .utils.db_utils import form_goalie_out, form_player_out, get_current_season
+from .utils.db_utils import form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season
 
 router = Router(tags=["Hockey"])
 
@@ -297,7 +297,7 @@ def get_game_periods(request: HttpRequest):
 
 @router.get('/game/list', response=list[GameOut])
 def get_games(request: HttpRequest):
-    games = Game.objects.all()
+    games = Game.objects.exclude(is_deprecated=True)
     return games
 
 @router.get('/game/{game_id}', response=GameOut)
@@ -332,6 +332,8 @@ def add_game(request: HttpRequest, data: GameIn):
                         away_turnovers=away_turnovers,
                         season=game_season,
                         **data.dict())
+            if data.status == 3:
+                GameEventsAnalysisQueue.objects.create(game=game, action=1)
     except IntegrityError as e:
         return resp.entry_already_exists("Game", str(e))
     game = Game.objects.get(id=game.id)
@@ -340,15 +342,25 @@ def add_game(request: HttpRequest, data: GameIn):
 @router.patch("/game/{game_id}", response={204: None})
 def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
     game = get_object_or_404(Game, id=game_id)
-    for attr, value in data.items():
-        setattr(game, attr, value)
-    game.save()
+    with transaction.atomic():
+        if data.status is not None and game.status != data.status and data.status == 3:
+            # Game has finished, add its data to statistics.
+            GameEventsAnalysisQueue.objects.create(game=game, action=1)
+        elif data.status is not None and game.status == 3 and data.status != 3:
+            # Game finish has been undone, remove its data from statistics.
+            GameEventsAnalysisQueue.objects.create(game=game, action=2)
+        for attr, value in data.items():
+            setattr(game, attr, value)
+        game.save()
     return 204, None
 
 @router.delete("/game/{game_id}", response={204: None})
 def delete_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
-    game.delete()
+    with transaction.atomic():
+        GameEventsAnalysisQueue.objects.create(game=game, action=3)
+        game.is_deprecated = True
+        game.save()
     return 204, None
 
 @router.patch("/game/defensive-zone-exit/{defensive_zone_exit_id}", response={204: None})
@@ -387,7 +399,7 @@ def update_turnovers(request: HttpRequest, turnovers_id: int, data: PatchDict[Tu
 
 # region Game players
 
-@router.get('/game-player/list', response=GamePlayersOut)
+@router.get('/game-player/game/{game_id}', response=GamePlayersOut)
 def get_game_players(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
     home_goalies = []
@@ -396,22 +408,27 @@ def get_game_players(request: HttpRequest, game_id: int):
     away_players = []
     for game_goalie in game.game_goalie_set:
         home_away = (home_goalies if game_goalie.goalie.team_id == game.home_team_id else away_goalies)
-        home_away.append(GameGoalieOut(
-            first_name=game_goalie.goalie.first_name,
-            last_name=game_goalie.goalie.last_name,
-            goals_against=game_goalie.goals_against,
-            saves=game_goalie.saves
-        ))
+        home_away.append(form_game_goalie_out(game_goalie))
     for game_player in game.game_player_set:
         home_away = (home_players if game_player.player.team_id == game.home_team_id else away_players)
-        home_away.append(GamePlayerOut(
-            first_name=game_player.player.first_name,
-            last_name=game_player.player.last_name,
-            goals=game_player.goals,
-            assists=game_player.assists,
-            shots=game_player.shots
-        ))
+        home_away.append(form_game_player_out(game_player))
     return GamePlayersOut(home_goalies=home_goalies, home_players=home_players, away_goalies=away_goalies, away_players=away_players)
+
+@router.get('/game-player/goalie/{goalie_id}', response=list[GameGoalieOut])
+def get_goalie_games(request: HttpRequest, goalie_id: int, limit: int = 5):
+    goalie_games = GameGoalie.objects.filter(goalie_id=goalie_id).order_by('-game__date')[:limit]
+    games: list[GameGoalieOut] = []
+    for game_goalie in goalie_games:
+        games.append(form_game_goalie_out(game_goalie))
+    return games
+
+@router.get('/game-player/player/{player_id}', response=list[GamePlayerOut])
+def get_player_games(request: HttpRequest, player_id: int, limit: int = 5):
+    player_games = GamePlayer.objects.filter(player_id=player_id).order_by('-game__date')[:limit]
+    games: list[GamePlayerOut] = []
+    for game_player in player_games:
+        games.append(form_game_player_out(game_player))
+    return games
 
 @router.post('/game-player/list', response={204: None})
 def set_game_players(request: HttpRequest, game_id: int, data: GamePlayersIn):
@@ -420,22 +437,6 @@ def set_game_players(request: HttpRequest, game_id: int, data: GamePlayersIn):
             GameGoalie.objects.create(game_id=game_id, goalie_id=goalie_id)
         for player_id in data.player_ids:
             GamePlayer.objects.create(game_id=game_id, player_id=player_id)
-    return 204, None
-
-@router.patch("/game-player/goalie/{game_goalie_id}", response={204: None})
-def update_game_goalie(request: HttpRequest, game_goalie_id: int, data: PatchDict[GameGoalieIn]):
-    goalie = get_object_or_404(GameGoalie, id=game_goalie_id)
-    for attr, value in data.items():
-        setattr(goalie, attr, value)
-    goalie.save()
-    return 204, None
-
-@router.patch("/game-player/player/{game_player_id}", response={204: None})
-def update_game_player(request: HttpRequest, game_player_id: int, data: PatchDict[GamePlayerIn]):
-    player = get_object_or_404(GamePlayer, id=game_player_id)
-    for attr, value in data.items():
-        setattr(player, attr, value)
-    player.save()
     return 204, None
 
 # endregion

@@ -2,11 +2,11 @@ import datetime
 
 from django.db import IntegrityError
 
-from hockey.models import Goalie, GoalieSeason, Player, PlayerSeason, Season
-from hockey.schemas import GoalieOut, PlayerOut
+from hockey.models import GameGoalie, GamePlayer, Goalie, GoalieSeason, Player, PlayerSeason, Season
+from hockey.schemas import GameGoalieOut, GamePlayerOut, GoalieOut, PlayerOut
 
 
-def get_current_season() -> Season | None:
+def get_current_season() -> Season:
     if datetime.datetime.now(datetime.timezone.utc).month < 10:
         seasons = Season.objects.filter(name__startswith=f'{datetime.datetime.now(datetime.timezone.utc).year - 1}')
     else:
@@ -66,3 +66,29 @@ def form_player_out(player: Player, season: Season) -> PlayerOut:
     player_out.shots_on_goal_per_game = player_season.shots_on_goal_per_game
     player_out.points = player_season.points
     return player_out
+
+def form_game_goalie_out(game_goalie: GameGoalie) -> GameGoalieOut:
+    return GameGoalieOut(
+        id=game_goalie.id,
+        first_name=game_goalie.goalie.first_name,
+        last_name=game_goalie.goalie.last_name,
+        goals_against=game_goalie.goals_against,
+        shots_against=game_goalie.shots_against,
+        saves=game_goalie.saves,
+        save_percents=game_goalie.save_percents
+    )
+
+def form_game_player_out(game_player: GamePlayer) -> GamePlayerOut:
+    return GamePlayerOut(
+        id=game_player.id,
+        first_name=game_player.player.first_name,
+        last_name=game_player.player.last_name,
+        goals=game_player.goals,
+        assists=game_player.assists,
+        shots_on_goal=game_player.shots_on_goal,
+        scoring_chances=game_player.scoring_chances,
+        penalty_minutes=game_player.penalty_minutes,
+        turnovers=game_player.turnovers,
+        faceoffs=game_player.faceoffs,
+        points=game_player.points
+    )
