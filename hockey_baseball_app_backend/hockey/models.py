@@ -166,7 +166,7 @@ class GoalieSeason(models.Model):
     goals_against = models.IntegerField(default=0)
     games_played = models.IntegerField(default=0)
     wins = models.IntegerField(default=0)
-    losses = models.IntegerField(default=0)
+    losses = models.IntegerField(default=0) # TODO: ask about "started/finished the game" in design.
     goals = models.IntegerField(default=0)
     assists = models.IntegerField(default=0)
     penalty_minutes = models.DurationField(default=datetime.timedelta(0))
@@ -525,11 +525,15 @@ class GameGoalie(models.Model):
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT)
     goals_against = models.IntegerField(default=0)
-    shots_against = models.IntegerField(default=0)
     saves = models.IntegerField(default=0)
+    
+    shots_against = models.GeneratedField(
+        expression=F('goals_against') + F('saves'),
+        output_field=models.IntegerField(),
+        db_persist=True)
 
     save_percents = models.GeneratedField(
-        expression=Case(When(shots_against__gt=0, then=((F('saves') / (F('shots_against'))) * 100)),
+        expression=Case(When(goals_against__gt=0, then=((F('saves') / (F('goals_against') + F('saves'))) * 100)),
                         default=Value(0), output_field=models.FloatField()),
         output_field=models.FloatField(),
         db_persist=True,

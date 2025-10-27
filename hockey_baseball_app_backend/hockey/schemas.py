@@ -299,6 +299,10 @@ class GameOut(GameIn):
     away_shots_id: int | None = None
     away_turnovers_id: int | None = None
 
+class GameDashboardOut(Schema):
+    upcoming_games: list[GameOut]
+    previous_games: list[GameOut]
+
 class GameGoalieOut(Schema):
     id: int
     first_name: str

@@ -15,7 +15,7 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
-from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, GameEventIn, GameEventOut, GameGoalieOut,
+from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, GameDashboardOut, GameEventIn, GameEventOut, GameGoalieOut,
                       GameIn, GameOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GoalieSeasonOut,
                       GoalieSeasonsGet, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn,
@@ -296,9 +296,17 @@ def get_game_periods(request: HttpRequest):
     return game_periods
 
 @router.get('/game/list', response=list[GameOut])
-def get_games(request: HttpRequest):
+def get_games(request: HttpRequest, on_now: bool = False):
     games = Game.objects.exclude(is_deprecated=True)
-    return games
+    if on_now:
+        games = games.filter(status=2)
+    return games.order_by('-date').all()
+
+@router.get('/game/list/dashboard', response=GameDashboardOut)
+def get_games_dashboard(request: HttpRequest, limit: int = 5):
+    upcoming_games = Game.objects.exclude(is_deprecated=True).filter(status=1).order_by('date')[:limit]
+    previous_games = Game.objects.exclude(is_deprecated=True).filter(status=3).order_by('-date')[:limit]
+    return GameDashboardOut(upcoming_games=upcoming_games, previous_games=previous_games)
 
 @router.get('/game/{game_id}', response=GameOut)
 def get_game(request: HttpRequest, game_id: int):
@@ -342,13 +350,19 @@ def add_game(request: HttpRequest, data: GameIn):
 @router.patch("/game/{game_id}", response={204: None})
 def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
     game = get_object_or_404(Game, id=game_id)
+    data_status = data['status']
     with transaction.atomic():
-        if data.status is not None and game.status != data.status and data.status == 3:
+        if data_status is not None and game.status != data_status and data_status == 3:
             # Game has finished, add its data to statistics.
             GameEventsAnalysisQueue.objects.create(game=game, action=1)
-        elif data.status is not None and game.status == 3 and data.status != 3:
+        elif data_status is not None and game.status == 3 and data_status != 3:
             # Game finish has been undone, remove its data from statistics.
             GameEventsAnalysisQueue.objects.create(game=game, action=2)
+        elif data_status is not None and game.status == data_status and data_status == 3:
+            # Game has been updated after finishing, re-apply its data to statistics.
+            GameEventsAnalysisQueue.objects.create(game=game, action=3)
+            GameEventsAnalysisQueue.objects.create(game=game, action=1)
+            
         for attr, value in data.items():
             setattr(game, attr, value)
         game.save()
