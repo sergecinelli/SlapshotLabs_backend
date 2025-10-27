@@ -6,20 +6,10 @@ from hockey.models import GameGoalie, GamePlayer, Goalie, GoalieSeason, Player, 
 from hockey.schemas import GameGoalieOut, GamePlayerOut, GoalieOut, PlayerOut
 
 
-def get_current_season() -> Season:
-    if datetime.datetime.now(datetime.timezone.utc).month < 10:
-        seasons = Season.objects.filter(name__startswith=f'{datetime.datetime.now(datetime.timezone.utc).year - 1}')
-    else:
-        seasons = Season.objects.filter(name__startswith=f'{datetime.datetime.now(datetime.timezone.utc).year}')
-
-    if len(seasons) == 0:
-        if datetime.datetime.now(datetime.timezone.utc).month < 10:
-            season = Season.objects.create(name=f'{datetime.datetime.now(datetime.timezone.utc).year - 1} / {datetime.datetime.now(datetime.timezone.utc).year}')
-        else:
-            season = Season.objects.create(name=f'{datetime.datetime.now(datetime.timezone.utc).year} / {datetime.datetime.now(datetime.timezone.utc).year + 1}')
-        return season
-
-    return seasons[0]
+def get_current_season() -> Season | None:
+    seasons = Season.objects.filter(start_date__lte=datetime.datetime.now(datetime.timezone.utc).date()).\
+        exclude(start_date__gt=datetime.datetime.now(datetime.timezone.utc).date()).order_by('-start_date').first()
+    return seasons
 
 def form_goalie_out(goalie: Goalie, season: Season) -> GoalieOut:
     goalie_season: GoalieSeason

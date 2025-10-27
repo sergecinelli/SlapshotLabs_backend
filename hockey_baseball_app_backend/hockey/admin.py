@@ -1,7 +1,9 @@
 from django.contrib import admin
 from django.apps import apps
 
-from .models import Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieTransaction, OffensiveZoneEntry, Player, PlayerPosition, PlayerTransaction, Season, Shots, Team, TeamLevel, TeamSeason, Turnovers
+from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod,
+                     GamePlayer, GameType, Goalie, GoalieTransaction, OffensiveZoneEntry, Player, PlayerPosition, PlayerTransaction,
+                     Season, Shots, Team, TeamLevel, TeamSeason, Turnovers)
 
 class HasNameAdmin(admin.ModelAdmin):
     list_display = ['name']
@@ -68,6 +70,12 @@ class PlayerTransactionAdmin(admin.ModelAdmin):
     ordering = ['-date', 'player__last_name']
     search_fields = ['date', 'player__last_name', 'player__first_name', 'team__name']
 
+@admin.register(Season)
+class SeasonAdmin(admin.ModelAdmin):
+    list_display = ['name', 'start_date']
+    ordering = ['start_date']
+    search_fields = ['name', 'start_date']
+
 @admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):
     list_display = ['name', 'age_group', 'level', 'division']
@@ -84,7 +92,5 @@ app = apps.get_app_config('hockey')
 
 for _, model in app.models.items():
 
-    if model in [Division, GameEventName, GamePeriod, GameType, PlayerPosition, Season, TeamLevel]:
+    if model in [Division, GameEventName, GamePeriod, GameType, PlayerPosition, TeamLevel]:
         admin.site.register(model, HasNameAdmin)
-    # elif model not in [DefensiveZoneExit, OffensiveZoneEntry, Shots, Turnovers, Arena, ArenaRink, Game, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieTransaction, Player, PlayerTransaction, Team, TeamSeason]:
-    #     admin.site.register(model)

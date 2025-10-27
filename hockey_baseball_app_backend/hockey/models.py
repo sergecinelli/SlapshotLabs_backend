@@ -1,7 +1,8 @@
 import datetime
 import uuid
 from django.db import models
-from django.db.models import Case, ExpressionWrapper, UniqueConstraint, When, Value, F
+from django.db.models import Case, DateField, ExpressionWrapper, UniqueConstraint, When, Value, F
+from django.db.models.functions import Concat
 
 class PlayerPersonalInformationMixin(models.Model):
 
@@ -48,6 +49,7 @@ class Division(models.Model):
 class Season(models.Model):
 
     name = models.CharField(max_length=11, unique=True)
+    start_date = DateField()
 
     def __str__(self):
         return self.name

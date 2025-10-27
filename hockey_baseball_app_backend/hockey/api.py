@@ -240,12 +240,13 @@ def delete_season(request: HttpRequest, season_id: int):
     season.delete()
     return 204, None
 
-@router.get('/team-season/list', response=list[TeamSeasonOut])
+@router.get('/team-season/list', response=list[TeamSeasonOut],
+            description="Returns the last `limit` team season results for the given team, or for all teams if no team is specified.")
 def get_team_seasons(request: HttpRequest, team_id: int | None = None, limit: int = 2):
-    team_seasons = TeamSeason.objects
+    team_seasons = TeamSeason.objects.exclude(season__start_date__gt=datetime.datetime.now(datetime.timezone.utc).date())
     if team_id is not None:
         team_seasons = team_seasons.filter(team_id=team_id)
-    team_seasons = team_seasons.order_by('-season__name')[:limit]
+    team_seasons = team_seasons.order_by('-season__start_date')[:limit]
     return team_seasons
 
 @router.get('/team-season/{team_season_id}', response=TeamSeasonOut)
