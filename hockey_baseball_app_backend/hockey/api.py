@@ -2,6 +2,7 @@ import datetime
 import os
 import re
 from django.conf import settings
+from django.db.models import Q
 from django.forms.models import model_to_dict
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
@@ -240,8 +241,11 @@ def delete_season(request: HttpRequest, season_id: int):
     return 204, None
 
 @router.get('/team-season/list', response=list[TeamSeasonOut])
-def get_team_seasons(request: HttpRequest):
-    team_seasons = TeamSeason.objects.all()
+def get_team_seasons(request: HttpRequest, team_id: int | None = None, limit: int = 2):
+    team_seasons = TeamSeason.objects
+    if team_id is not None:
+        team_seasons = team_seasons.filter(team_id=team_id)
+    team_seasons = team_seasons.order_by('-season__name')[:limit]
     return team_seasons
 
 @router.get('/team-season/{team_season_id}', response=TeamSeasonOut)
@@ -303,10 +307,15 @@ def get_games(request: HttpRequest, on_now: bool = False):
     return games.order_by('-date').all()
 
 @router.get('/game/list/dashboard', response=GameDashboardOut)
-def get_games_dashboard(request: HttpRequest, limit: int = 5):
-    upcoming_games = Game.objects.exclude(is_deprecated=True).filter(status=1).order_by('date')[:limit]
-    previous_games = Game.objects.exclude(is_deprecated=True).filter(status=3).order_by('-date')[:limit]
-    return GameDashboardOut(upcoming_games=upcoming_games, previous_games=previous_games)
+def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | None = None):
+    upcoming_games = Game.objects.exclude(is_deprecated=True).filter(status=1).order_by('date')
+    previous_games = Game.objects.exclude(is_deprecated=True).filter(status=3).order_by('-date')
+
+    if team_id is not None:
+        upcoming_games = upcoming_games.filter(Q(home_team_id=team_id) | Q(away_team_id=team_id))
+        previous_games = previous_games.filter(Q(home_team_id=team_id) | Q(away_team_id=team_id))
+
+    return GameDashboardOut(upcoming_games=upcoming_games[:limit], previous_games=previous_games[:limit])
 
 @router.get('/game/{game_id}', response=GameOut)
 def get_game(request: HttpRequest, game_id: int):
