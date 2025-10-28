@@ -410,8 +410,9 @@ class OffensiveZoneEntry(models.Model):
 class Shots(models.Model):
 
     shots_on_goal = models.IntegerField(default=0)
-    missed_net = models.IntegerField(default=0)
     scoring_chance = models.IntegerField(default=0)
+    saves = models.IntegerField(default=0)
+    missed_net = models.IntegerField(default=0)
     blocked = models.IntegerField(default=0)
 
     def __str__(self):
@@ -546,7 +547,19 @@ class GameGoalie(models.Model):
 
     class Meta:
         db_table = "game_goalies"
-    
+
+class HighlightReel(models.Model):
+    name = models.CharField(max_length=150)
+    description = models.TextField()
+    date = models.DateField()
+    created_by = models.IntegerField()
+
+    def __str__(self):
+        return f"{self.date} - {self.name}"
+
+    class Meta:
+        db_table = "highlight_reels"
+
 class GameEventName(models.Model):
 
     name = models.CharField(max_length=50)
@@ -556,6 +569,15 @@ class GameEventName(models.Model):
 
     class Meta:
         db_table = "game_event_names"
+
+class ShotType(models.Model):
+    name = models.CharField(max_length=50)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        db_table = "shot_types"
 
 class GameEvents(models.Model):
 
@@ -568,6 +590,10 @@ class GameEvents(models.Model):
     player = models.ForeignKey(Player, on_delete=models.RESTRICT, null=True, related_name='player')
     player_2 = models.ForeignKey(Player, on_delete=models.RESTRICT, null=True, related_name='player_2')
     goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT, null=True)
+
+    # Shot specific fields.
+    shot_type = models.ForeignKey(ShotType, on_delete=models.RESTRICT, null=True)
+    is_scoring_chance = models.BooleanField(default=False)
 
     # Spray chart points.
     ice_top_offset = models.IntegerField(null=True, blank=True)

@@ -3,7 +3,7 @@ from django.apps import apps
 
 from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod,
                      GamePlayer, GameType, Goalie, GoalieTransaction, OffensiveZoneEntry, Player, PlayerPosition, PlayerTransaction,
-                     Season, Shots, Team, TeamLevel, TeamSeason, Turnovers)
+                     Season, ShotType, Shots, Team, TeamLevel, TeamSeason, Turnovers)
 
 class HasNameAdmin(admin.ModelAdmin):
     list_display = ['name']
@@ -73,7 +73,7 @@ class PlayerTransactionAdmin(admin.ModelAdmin):
 @admin.register(Season)
 class SeasonAdmin(admin.ModelAdmin):
     list_display = ['name', 'start_date']
-    ordering = ['start_date']
+    ordering = ['-start_date']
     search_fields = ['name', 'start_date']
 
 @admin.register(Team)
@@ -92,5 +92,5 @@ app = apps.get_app_config('hockey')
 
 for _, model in app.models.items():
 
-    if model in [Division, GameEventName, GamePeriod, GameType, PlayerPosition, TeamLevel]:
+    if model in [Division, GameEventName, GamePeriod, GameType, PlayerPosition, ShotType, TeamLevel]:
         admin.site.register(model, HasNameAdmin)

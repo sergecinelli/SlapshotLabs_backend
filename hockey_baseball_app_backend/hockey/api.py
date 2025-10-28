@@ -16,16 +16,16 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
-from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, GameDashboardOut, GameEventIn, GameEventOut, GameGoalieOut,
+from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameGoalieOut,
                       GameIn, GameOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GoalieSeasonOut,
-                      GoalieSeasonsGet, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, PlayerPositionOut, GoalieIn,
-                      GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn,
-                      TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn)
+                      GoalieSeasonsGet, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
+                      GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
+                      TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut)
 from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, OffensiveZoneEntry, Player,
-                     PlayerPosition, PlayerSeason, Season, Shots, Team, TeamLevel, TeamSeason, Turnovers)
+                     PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, Turnovers)
 from .utils import api_response_templates as resp
-from .utils.db_utils import form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season
+from .utils.db_utils import form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season, update_game_shots_from_event
 
 router = Router(tags=["Hockey"])
 
@@ -387,6 +387,11 @@ def delete_game(request: HttpRequest, game_id: int):
         game.save()
     return 204, None
 
+@router.get("/game/defensive-zone-exit/{defensive_zone_exit_id}", response=DefensiveZoneExitOut)
+def get_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id: int):
+    defensive_zone_exit = get_object_or_404(DefensiveZoneExit, id=defensive_zone_exit_id)
+    return defensive_zone_exit
+
 @router.patch("/game/defensive-zone-exit/{defensive_zone_exit_id}", response={204: None})
 def update_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id: int, data: PatchDict[DefensiveZoneExitIn]):
     defensive_zone_exit = get_object_or_404(DefensiveZoneExit, id=defensive_zone_exit_id)
@@ -394,6 +399,11 @@ def update_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id
         setattr(defensive_zone_exit, attr, value)
     defensive_zone_exit.save()
     return 204, None
+
+@router.get("/game/offensive-zone-entry/{offensive_zone_entry_id}", response=OffensiveZoneEntryOut)
+def get_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_id: int):
+    offensive_zone_entry = get_object_or_404(OffensiveZoneEntry, id=offensive_zone_entry_id)
+    return offensive_zone_entry
 
 @router.patch("/game/offensive-zone-entry/{offensive_zone_entry_id}", response={204: None})
 def update_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_id: int, data: PatchDict[OffensiveZoneEntryIn]):
@@ -403,21 +413,31 @@ def update_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_
     offensive_zone_entry.save()
     return 204, None
 
-@router.patch("/game/shots/{shots_id}", response={204: None})
-def update_game_shots(request: HttpRequest, shots_id: int, data: PatchDict[ShotsIn]):
+@router.get("/game/shots/{shots_id}", response=ShotsOut)
+def get_game_shots(request: HttpRequest, shots_id: int):
     shots = get_object_or_404(Shots, id=shots_id)
-    for attr, value in data.items():
-        setattr(shots, attr, value)
-    shots.save()
-    return 204, None
+    return shots
 
-@router.patch("/game/turnovers/{turnovers_id}", response={204: None})
-def update_turnovers(request: HttpRequest, turnovers_id: int, data: PatchDict[TurnoversIn]):
+@router.get("/game/turnovers/{turnovers_id}", response=TurnoversOut)
+def get_game_turnovers(request: HttpRequest, turnovers_id: int):
     turnovers = get_object_or_404(Turnovers, id=turnovers_id)
-    for attr, value in data.items():
-        setattr(turnovers, attr, value)
-    turnovers.save()
-    return 204, None
+    return turnovers
+
+# @router.patch("/game/shots/{shots_id}", response={204: None})
+# def update_game_shots(request: HttpRequest, shots_id: int, data: PatchDict[ShotsIn]):
+#     shots = get_object_or_404(Shots, id=shots_id)
+#     for attr, value in data.items():
+#         setattr(shots, attr, value)
+#     shots.save()
+#     return 204, None
+
+# @router.patch("/game/turnovers/{turnovers_id}", response={204: None})
+# def update_turnovers(request: HttpRequest, turnovers_id: int, data: PatchDict[TurnoversIn]):
+#     turnovers = get_object_or_404(Turnovers, id=turnovers_id)
+#     for attr, value in data.items():
+#         setattr(turnovers, attr, value)
+#     turnovers.save()
+#     return 204, None
 
 # endregion
 
@@ -430,10 +450,10 @@ def get_game_players(request: HttpRequest, game_id: int):
     home_players = []
     away_goalies = []
     away_players = []
-    for game_goalie in game.game_goalie_set:
+    for game_goalie in game.gamegoalie_set.all():
         home_away = (home_goalies if game_goalie.goalie.team_id == game.home_team_id else away_goalies)
         home_away.append(form_game_goalie_out(game_goalie))
-    for game_player in game.game_player_set:
+    for game_player in game.gameplayer_set.all():
         home_away = (home_players if game_player.player.team_id == game.home_team_id else away_players)
         home_away.append(form_game_player_out(game_player))
     return GamePlayersOut(home_goalies=home_goalies, home_players=home_players, away_goalies=away_goalies, away_players=away_players)
@@ -472,6 +492,11 @@ def get_game_event_names(request: HttpRequest):
     game_event_names = GameEventName.objects.all()
     return game_event_names
 
+@router.get('/shot-type/list', response=list[ObjectIdName])
+def get_shot_types(request: HttpRequest):
+    shot_types = ShotType.objects.order_by('name').all()
+    return shot_types
+
 @router.get('/game-event/list', response=list[GameEventOut])
 def get_game_events(request: HttpRequest, game_id: int | None = None):
     game_events = GameEvents.objects.prefetch_related('players').exclude(is_deprecated=True)
@@ -493,7 +518,17 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
         data_new = data.dict()
         previous_event = GameEvents.objects.filter(game_id=data.game_id).order_by('-number').first()
         data_new['number'] = (1 if previous_event is None else (previous_event.number + 1))
-        game_event = GameEvents.objects.create(**data_new)
+        with transaction.atomic():
+            game_event = GameEvents.objects.create(**data_new)
+
+            if game_event.shot_type is not None and game_event.event_name.name.lower() != "shot on goal":
+                transaction.set_rollback(True)
+                return 400, {"message": "Shot type is only allowed for 'shot on goal' events."}
+
+            game: Game = game_event.game
+
+            update_game_shots_from_event(game, data, is_deleted=False)
+
     except IntegrityError as e:
         return resp.entry_already_exists("Game event", str(e))
     return {"id": game_event.id}
@@ -503,25 +538,36 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
     with transaction.atomic():
 
         game_event = get_object_or_404(GameEvents, id=game_event_id)
-        game_event.is_deprecated = True
-        game_event.save()
+        game: Game = game_event.game
 
-        GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
+        with transaction.atomic():
+            game_event.is_deprecated = True
+            update_game_shots_from_event(game, event=game_event, is_deleted=True)
+            game_event.save()
 
-        # Create the copy without deprecation.
-        game_event.pk = None
-        game_event._state.adding = True
-        game_event.save()
+            GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
 
-        game_event.is_deprecated = False
+            # Create the copy without deprecation.
+            game_event.pk = None
+            game_event._state.adding = True
+            game_event.save()
 
-        for attr, value in data.items():
-            setattr(game_event, attr, value)
-        if game_event.goalie is None and game_event.player is None and game_event.player_2 is None:
-            return 400, {"message": "Please specify goalie ID or player IDs."}
-        game_event.save()
+            game_event.is_deprecated = False
 
-        GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
+            for attr, value in data.items():
+                setattr(game_event, attr, value)
+            if game_event.goalie is None and game_event.player is None and game_event.player_2 is None:
+                transaction.set_rollback(True)
+                return 400, {"message": "Please specify goalie ID or player IDs."}
+            game_event.save()
+
+            if game_event.shot_type is not None and game_event.event_name.name.lower() != "shot on goal":
+                transaction.set_rollback(True)
+                return 400, {"message": "Shot type is only allowed for 'shot on goal' events."}
+
+            update_game_shots_from_event(game, event=game_event, is_deleted=False)
+
+            GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
 
     return 204, None
 
@@ -538,6 +584,11 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
                 evt.save()
         game_event.is_deprecated = True
         game_event.save()
+
+        update_game_shots_from_event(game_event.game, event=game_event, is_deleted=True)
+
+        GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
+
     return 204, None
 
 # endregion

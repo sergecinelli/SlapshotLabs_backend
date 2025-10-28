@@ -245,17 +245,19 @@ class OffensiveZoneEntryIn(Schema):
     dump_lose: int = Field(..., description="Dump/L")
     skate_in: int
 
-class OffensiveZoneEntryInOut(OffensiveZoneEntryIn):
+class OffensiveZoneEntryOut(OffensiveZoneEntryIn):
     id: int
 
 class ShotsIn(Schema):
     shots_on_goal: int
+    saves: int
     missed_net: int
-    scoring_chance: int
+    scoring_chance: bool
     blocked: int
 
 class ShotsOut(ShotsIn):
     id: int
+    scoring_chance: int
 
 class TurnoversIn(Schema):
     off_zone: int
@@ -349,6 +351,10 @@ class GameEventIn(Schema):
     player_id: int | None = None
     player_2_id: int | None = None
     goalie_id: int | None = None
+
+    # Shot specific fields.
+    shot_type_id: int | None = None
+    is_scoring_chance: bool | None = None
 
     # Spray chart points.
     ice_top_offset: int | None = None

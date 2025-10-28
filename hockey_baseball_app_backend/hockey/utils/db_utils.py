@@ -2,8 +2,8 @@ import datetime
 
 from django.db import IntegrityError
 
-from hockey.models import GameGoalie, GamePlayer, Goalie, GoalieSeason, Player, PlayerSeason, Season
-from hockey.schemas import GameGoalieOut, GamePlayerOut, GoalieOut, PlayerOut
+from hockey.models import Game, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Player, PlayerSeason, Season, ShotType, Team
+from hockey.schemas import GameEventIn, GameGoalieOut, GamePlayerOut, GoalieOut, PlayerOut
 
 
 def get_current_season() -> Season | None:
@@ -82,3 +82,51 @@ def form_game_player_out(game_player: GamePlayer) -> GamePlayerOut:
         faceoffs=game_player.faceoffs,
         points=game_player.points
     )
+
+def update_game_shots_from_event(game: Game, data: GameEventIn | None = None, event: GameEvents | None = None, is_deleted: bool = False) -> None:
+    if data is not None:
+        shot_type = ShotType.objects.get(id=data.shot_type_id) if data.shot_type_id is not None else None
+    else:
+        shot_type = event.shot_type
+    shot_type_name = shot_type.name.lower() if shot_type is not None else None
+    shot_team = Team.objects.get(id=(data.team_id if data is not None else event.team_id))
+
+    value_to_add = 1 if not is_deleted else -1
+
+    if shot_type_name is not None:
+        if shot_team == game.home_team:
+            game.home_shots.shots_on_goal += value_to_add
+        else:
+            game.away_shots.shots_on_goal += value_to_add
+
+    if ((data is not None and data.is_scoring_chance) or (event is not None and event.is_scoring_chance)):
+        if shot_team == game.home_team:
+            game.home_shots.scoring_chance += value_to_add
+        else:
+            game.away_shots.scoring_chance += value_to_add
+
+    if shot_type_name == "goal":
+        if shot_team == game.home_team:
+            game.home_goals += value_to_add
+        else:
+            game.away_goals += value_to_add
+    elif shot_type_name == "save":
+        if shot_team == game.home_team:
+            game.home_shots.saves += value_to_add
+        else:
+            game.away_shots.saves += value_to_add
+    elif shot_type_name == "missed the net":
+        if shot_team == game.home_team:
+            game.home_shots.missed_net += value_to_add
+        else:
+            game.away_shots.missed_net += value_to_add
+    elif shot_type_name == "blocked":
+        if shot_team == game.home_team:
+            game.home_shots.blocked += value_to_add
+        else:
+            game.away_shots.blocked += value_to_add
+    
+    if shot_type_name is not None:
+        game.home_shots.save()
+        game.away_shots.save()
+        game.save()
