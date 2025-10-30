@@ -477,20 +477,36 @@ class Game(models.Model):
 
     # Dashboard fields.
 
-    game_period = models.ForeignKey(GamePeriod, on_delete=models.RESTRICT, null=True, blank=True)
     game_type_group = models.CharField(max_length=10)
 
-    home_faceoff_win = models.IntegerField("Home Faceoff Win %", null=True, blank=True)
+    game_period = models.ForeignKey(GamePeriod, on_delete=models.RESTRICT, null=True, blank=True)
+
+    faceoffs_count = models.IntegerField(default=0)
+    home_faceoffs_won_count = models.IntegerField(default=0)
+
     home_defensive_zone_exit = models.OneToOneField(DefensiveZoneExit, related_name='home_game', on_delete=models.RESTRICT)
     home_offensive_zone_entry = models.OneToOneField(OffensiveZoneEntry, related_name='home_game', on_delete=models.RESTRICT)
     home_shots = models.OneToOneField(Shots, related_name='home_game', on_delete=models.RESTRICT)
     home_turnovers = models.OneToOneField(Turnovers, related_name='home_game', on_delete=models.RESTRICT)
 
-    away_faceoff_win = models.IntegerField("Away Faceoff Win %", null=True, blank=True)
     away_defensive_zone_exit = models.OneToOneField(DefensiveZoneExit, related_name='away_game', on_delete=models.RESTRICT)
     away_offensive_zone_entry = models.OneToOneField(OffensiveZoneEntry, related_name='away_game', on_delete=models.RESTRICT)
     away_shots = models.OneToOneField(Shots, related_name='away_game', on_delete=models.RESTRICT)
     away_turnovers = models.OneToOneField(Turnovers, related_name='away_game', on_delete=models.RESTRICT)
+
+    # home_faceoff_win = models.GeneratedField(
+    #     expression=Case(When(faceoffs_count__gt=0, then=((F('home_faceoffs_won_count') / F('faceoffs_count')) * 100)),
+    #                     default=Value(0), output_field=models.FloatField()),
+    #     output_field=models.FloatField(),
+    #     db_persist=True,
+    #     verbose_name="Home Faceoff Win %")
+
+    # away_faceoff_win = models.GeneratedField(
+    #     expression=Case(When(faceoffs_count__gt=0, then=(((F('faceoffs_count') - F('home_faceoffs_won_count')) / F('faceoffs_count')) * 100)),
+    #                     default=Value(0), output_field=models.FloatField()),
+    #     output_field=models.FloatField(),
+    #     db_persist=True,
+    #     verbose_name="Away Faceoff Win %")
 
     is_deprecated = models.BooleanField(default=False)
 
@@ -593,7 +609,7 @@ class GameEvents(models.Model):
 
     # Shot specific fields.
     shot_type = models.ForeignKey(ShotType, on_delete=models.RESTRICT, null=True)
-    is_scoring_chance = models.BooleanField(default=False)
+    is_scoring_chance = models.BooleanField(default=False, null=True, blank=True)
 
     # Turnover specific fields.
     zone = models.CharField(max_length=20, null=True, blank=True, choices=[("Attacking", "Attacking"), ("Neutral", "Neutral"), ("Defending", "Defending")])

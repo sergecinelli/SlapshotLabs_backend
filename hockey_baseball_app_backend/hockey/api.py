@@ -17,7 +17,7 @@ import faker.providers
 from faker_animals import AnimalsProvider
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameGoalieOut,
-                      GameIn, GameOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GoalieSeasonOut,
+                      GameIn, GameLiveDataOut, GameOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GoalieSeasonOut,
                       GoalieSeasonsGet, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut)
@@ -25,7 +25,7 @@ from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEv
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, Turnovers)
 from .utils import api_response_templates as resp
-from .utils.db_utils import form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season, update_game_shots_from_event, update_game_turnovers_from_event
+from .utils.db_utils import form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season, update_game_faceoffs_from_event, update_game_shots_from_event, update_game_turnovers_from_event
 
 router = Router(tags=["Hockey"])
 
@@ -331,7 +331,7 @@ def add_game(request: HttpRequest, data: GameIn):
         else:
             season_start = data.date.year
         game_season = Season.objects.filter(name__startswith=season_start)
-        with transaction.atomic():
+        with transaction.atomic(using='hockey'):
             home_defensive_zone_exit = DefensiveZoneExit.objects.create()
             home_offensive_zone_entry = OffensiveZoneEntry.objects.create()
             home_shots = Shots.objects.create()
@@ -361,7 +361,7 @@ def add_game(request: HttpRequest, data: GameIn):
 def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
     game = get_object_or_404(Game, id=game_id)
     data_status = data['status']
-    with transaction.atomic():
+    with transaction.atomic(using='hockey'):
         if data_status is not None and game.status != data_status and data_status == 3:
             # Game has finished, add its data to statistics.
             GameEventsAnalysisQueue.objects.create(game=game, action=1)
@@ -381,7 +381,7 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
 @router.delete("/game/{game_id}", response={204: None})
 def delete_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
-    with transaction.atomic():
+    with transaction.atomic(using='hockey'):
         GameEventsAnalysisQueue.objects.create(game=game, action=3)
         game.is_deprecated = True
         game.save()
@@ -423,21 +423,21 @@ def get_game_turnovers(request: HttpRequest, turnovers_id: int):
     turnovers = get_object_or_404(Turnovers, id=turnovers_id)
     return turnovers
 
-# @router.patch("/game/shots/{shots_id}", response={204: None})
-# def update_game_shots(request: HttpRequest, shots_id: int, data: PatchDict[ShotsIn]):
-#     shots = get_object_or_404(Shots, id=shots_id)
-#     for attr, value in data.items():
-#         setattr(shots, attr, value)
-#     shots.save()
-#     return 204, None
-
-# @router.patch("/game/turnovers/{turnovers_id}", response={204: None})
-# def update_turnovers(request: HttpRequest, turnovers_id: int, data: PatchDict[TurnoversIn]):
-#     turnovers = get_object_or_404(Turnovers, id=turnovers_id)
-#     for attr, value in data.items():
-#         setattr(turnovers, attr, value)
-#     turnovers.save()
-#     return 204, None
+@router.get("/game/{game_id}/live-data", response=GameLiveDataOut)
+def get_game_live_data(request: HttpRequest, game_id: int):
+    game = get_object_or_404(Game, id=game_id)
+    return GameLiveDataOut(home_goals=game.home_goals, away_goals=game.away_goals,
+                           home_faceoff_win=(round((game.home_faceoffs_won_count / game.faceoffs_count) * 100) if game.faceoffs_count > 0 else 0),
+                           away_faceoff_win=(round(((game.faceoffs_count - game.home_faceoffs_won_count) / game.faceoffs_count) * 100) if game.faceoffs_count > 0 else 0),
+                           home_defensive_zone_exit=game.home_defensive_zone_exit,
+                           away_defensive_zone_exit=game.away_defensive_zone_exit,
+                           home_offensive_zone_entry=game.home_offensive_zone_entry,
+                           away_offensive_zone_entry=game.away_offensive_zone_entry,
+                           home_shots=game.home_shots,
+                           away_shots=game.away_shots,
+                           home_turnovers=game.home_turnovers,
+                           away_turnovers=game.away_turnovers,
+                           events=game.gameevents_set.filter(is_deprecated=False).order_by('number'))
 
 # endregion
 
@@ -476,7 +476,7 @@ def get_player_games(request: HttpRequest, player_id: int, limit: int = 5):
 
 @router.post('/game-player/list', response={204: None})
 def set_game_players(request: HttpRequest, game_id: int, data: GamePlayersIn):
-    with transaction.atomic():
+    with transaction.atomic(using='hockey'):
         for goalie_id in data.goalie_ids:
             GameGoalie.objects.create(game_id=game_id, goalie_id=goalie_id)
         for player_id in data.player_ids:
@@ -518,26 +518,29 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
         data_new = data.dict()
         previous_event = GameEvents.objects.filter(game_id=data.game_id).order_by('-number').first()
         data_new['number'] = (1 if previous_event is None else (previous_event.number + 1))
-        with transaction.atomic():
+        with transaction.atomic(using='hockey'):
             game_event = GameEvents.objects.create(**data_new)
 
             if game_event.shot_type is not None and game_event.event_name.name.lower() != "shot on goal":
-                transaction.set_rollback(True)
-                return 400, {"message": "Shot type is only allowed for 'shot on goal' events."}
+                raise ValueError("Shot type is only allowed for 'shot on goal' events.")
 
             game: Game = game_event.game
 
             if game_event.event_name.name.lower() == "shot on goal":
                 error = update_game_shots_from_event(game, data=data, is_deleted=False)
                 if error is not None:
-                    transaction.set_rollback(True)
-                    return 400, {"message": error}
+                    raise ValueError(error)
             elif game_event.event_name.name.lower() == "turnover":
                 error = update_game_turnovers_from_event(game, data=data, is_deleted=False)
                 if error is not None:
-                    transaction.set_rollback(True)
-                    return 400, {"message": error}
+                    raise ValueError(error)
+            elif game_event.event_name.name.lower() == "faceoff":
+                error = update_game_faceoffs_from_event(game, data=data, is_deleted=False)
+                if error is not None:
+                    raise ValueError(error)
 
+    except ValueError as e:
+        return 400, {"message": str(e)}
     except IntegrityError as e:
         return resp.entry_already_exists("Game event", str(e))
     return {"id": game_event.id}
@@ -548,59 +551,64 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
     game_event = get_object_or_404(GameEvents, id=game_event_id)
     game: Game = game_event.game
 
-    with transaction.atomic():
+    try:
+        with transaction.atomic(using='hockey'):
 
-        # Create the copy with deprecation.
+            # Create the copy with deprecation.
 
-        game_event.pk = None
-        game_event._state.adding = True
-        game_event.is_deprecated = True
-        game_event.save()
+            game_event.pk = None
+            game_event._state.adding = True
+            game_event.is_deprecated = True
+            game_event.save()
 
-        # Undo old shot/turnover data.
-        if game_event.event_name.name.lower() == "shot on goal":
-            error = update_game_shots_from_event(game, event=game_event, is_deleted=True)
-            if error is not None:
-                transaction.set_rollback(True)
-                return 400, {"message": error}
-        elif game_event.event_name.name.lower() == "turnover":
-            error = update_game_turnovers_from_event(game, event=game_event, is_deleted=True)
-            if error is not None:
-                transaction.set_rollback(True)
-                return 400, {"message": error}
+            # Undo old shot/turnover data.
+            if game_event.event_name.name.lower() == "shot on goal":
+                error = update_game_shots_from_event(game, event=game_event, is_deleted=True)
+                if error is not None:
+                    raise ValueError(error)
+            elif game_event.event_name.name.lower() == "turnover":
+                error = update_game_turnovers_from_event(game, event=game_event, is_deleted=True)
+                if error is not None:
+                    raise ValueError(error)
+            elif game_event.event_name.name.lower() == "faceoff":
+                error = update_game_faceoffs_from_event(game, event=game_event, is_deleted=True)
+                if error is not None:
+                    raise ValueError(error)
 
-        game_event.save()
+            game_event.save()
 
-        GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
+            GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
 
-        # Update the original event.
+            # Update the original event.
 
-        game_event = GameEvents.objects.get(id=game_event_id)
+            game_event = GameEvents.objects.get(id=game_event_id)
 
-        for attr, value in data.items():
-            setattr(game_event, attr, value)
-        if game_event.goalie is None and game_event.player is None and game_event.player_2 is None:
-            transaction.set_rollback(True)
-            return 400, {"message": "Please specify goalie ID or player IDs."}
-        game_event.save()
+            for attr, value in data.items():
+                setattr(game_event, attr, value)
+            if game_event.goalie is None and game_event.player is None and game_event.player_2 is None:
+                raise ValueError("Please specify goalie ID or player IDs.")
+            if game_event.shot_type is not None and game_event.event_name.name.lower() != "shot on goal":
+                game_event.shot_type = None
+            game_event.save()
 
-        if game_event.shot_type is not None and game_event.event_name.name.lower() != "shot on goal":
-            transaction.set_rollback(True)
-            return 400, {"message": "Shot type is only allowed for 'shot on goal' events."}
+            # Apply new shot/turnover data.
+            if game_event.event_name.name.lower() == "shot on goal":
+                error = update_game_shots_from_event(game, event=game_event, is_deleted=False)
+                if error is not None:
+                    raise ValueError(error)
+            elif game_event.event_name.name.lower() == "turnover":
+                error = update_game_turnovers_from_event(game, event=game_event, is_deleted=False)
+                if error is not None:
+                    raise ValueError(error)
+            elif game_event.event_name.name.lower() == "faceoff":
+                error = update_game_faceoffs_from_event(game, event=game_event, is_deleted=False)
+                if error is not None:
+                    raise ValueError(error)
 
-        # Apply new shot/turnover data.
-        if game_event.event_name.name.lower() == "shot on goal":
-            error = update_game_shots_from_event(game, event=game_event, is_deleted=False)
-            if error is not None:
-                transaction.set_rollback(True)
-                return 400, {"message": error}
-        elif game_event.event_name.name.lower() == "turnover":
-            error = update_game_turnovers_from_event(game, event=game_event, is_deleted=False)
-            if error is not None:
-                transaction.set_rollback(True)
-                return 400, {"message": error}
+            GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
 
-        GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
+    except ValueError as e:
+        return 400, {"message": str(e)}
 
     return 204, None
 
@@ -608,7 +616,7 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
 def delete_game_event(request: HttpRequest, game_event_id: int):
     game_event = get_object_or_404(GameEvents, id=game_event_id)
     last_event = GameEvents.objects.filter(game_id=game_event.game_id).order_by('-number').first()
-    with transaction.atomic():
+    with transaction.atomic(using='hockey'):
         if last_event.number != game_event.number:
             # We are deleting event from middle of list: recalculate event numbers for this game.
             events = GameEvents.objects.filter(game_id=game_event.game_id).exclude(id=game_event_id).order_by('number')
@@ -621,12 +629,18 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
         if game_event.event_name.name.lower() == "shot on goal":
             error = update_game_shots_from_event(game_event.game, event=game_event, is_deleted=True)
             if error is not None:
-                transaction.set_rollback(True)
+                transaction.set_rollback(True, using='hockey')
                 return 400, {"message": error}
         elif game_event.event_name.name.lower() == "turnover":
             error = update_game_turnovers_from_event(game_event.game, event=game_event, is_deleted=True)
             if error is not None:
-                transaction.set_rollback(True)
+                transaction.set_rollback(True, using='hockey')
+                return 400, {"message": error}
+        elif game_event.event_name.name.lower() == "faceoff":
+            error = update_game_faceoffs_from_event(game_event.game, event=game_event, is_deleted=True)
+            if error is not None:
+                transaction.set_rollback(True, using='hockey')
+                return 400, {"message": error}
 
         GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
 

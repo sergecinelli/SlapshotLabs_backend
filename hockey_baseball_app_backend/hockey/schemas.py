@@ -284,22 +284,8 @@ class GameIn(Schema):
     game_period_id: int | None = None
     game_type_group: str
 
-    home_faceoff_win: int = 0
-
-    away_faceoff_win: int = 0
-
 class GameOut(GameIn):
     id: int
-
-    home_defensive_zone_exit_id: int | None = None
-    home_offensive_zone_entry_id: int | None = None
-    home_shots_id: int | None = None
-    home_turnovers_id: int | None = None
-
-    away_defensive_zone_exit_id: int | None = None
-    away_offensive_zone_entry_id: int | None = None
-    away_shots_id: int | None = None
-    away_turnovers_id: int | None = None
 
 class GameDashboardOut(Schema):
     upcoming_games: list[GameOut]
@@ -366,17 +352,28 @@ class GameEventIn(Schema):
     zone: str | None = Field(None, description="\"Attacking\", \"Neutral\" or \"Defending\"")
 
     note: str | None = None
+    is_faceoff_won: bool | None = None
     time_length: datetime.timedelta | None = None
 
     youtube_link: str | None = None
 
-    # class Config(Schema.Config):
-    #     json_encoders = {
-    #         datetime.timedelta: lambda v: f"{v.total_seconds() // 60}:{v.total_seconds() % 60}"
-    #     }
-
 class GameEventOut(GameEventIn):
     id: int
     number: int
+
+class GameLiveDataOut(Schema):
+    home_goals: int
+    away_goals: int
+    home_faceoff_win: int
+    away_faceoff_win: int
+    home_defensive_zone_exit: DefensiveZoneExitOut
+    away_defensive_zone_exit: DefensiveZoneExitOut
+    home_offensive_zone_entry: OffensiveZoneEntryOut
+    away_offensive_zone_entry: OffensiveZoneEntryOut
+    home_shots: ShotsOut
+    away_shots: ShotsOut
+    home_turnovers: TurnoversOut
+    away_turnovers: TurnoversOut
+    events: list[GameEventOut]
 
 # endregion

@@ -98,6 +98,9 @@ def update_game_shots_from_event(game: Game, data: GameEventIn | None = None, ev
     if shot_team is None or shot_team != game.home_team and shot_team != game.away_team:
         return "Invalid team"
 
+    if ((data is not None and data.is_scoring_chance is None) or (event is not None and event.is_scoring_chance is None)):
+        return "Is scoring chance field is required for shot events"
+
     value_to_add = (1 if not is_deleted else -1)
 
     if shot_type_name is not None:
@@ -134,7 +137,7 @@ def update_game_shots_from_event(game: Game, data: GameEventIn | None = None, ev
             game.away_shots.blocked += value_to_add
     else:
         return "Invalid shot type"
-    
+
     game.home_shots.save()
     game.away_shots.save()
     game.save()
@@ -176,5 +179,28 @@ def update_game_turnovers_from_event(game: Game, data: GameEventIn | None = None
 
     game.home_turnovers.save()
     game.away_turnovers.save()
+    game.save()
+    return None
+
+def update_game_faceoffs_from_event(game: Game, data: GameEventIn | None = None, event: GameEvents | None = None, is_deleted: bool = False) -> str | None:
+    if data is not None:
+        is_faceoff_won = data.is_faceoff_won
+    else:
+        is_faceoff_won = event.is_faceoff_won
+
+    if is_faceoff_won is None:
+        return "Is faceoff won field is required"
+
+    faceoff_team = Team.objects.get(id=(data.team_id if data is not None else event.team_id))
+    if faceoff_team is None or faceoff_team != game.home_team and faceoff_team != game.away_team:
+        return "Invalid team"
+
+    value_to_add = (1 if not is_deleted else -1)
+
+    if ((is_faceoff_won and faceoff_team == game.home_team) or (not is_faceoff_won and faceoff_team == game.away_team)):
+        game.home_faceoffs_won_count += value_to_add
+
+    game.faceoffs_count += value_to_add
+
     game.save()
     return None
