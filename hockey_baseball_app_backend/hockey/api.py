@@ -426,7 +426,8 @@ def get_game_turnovers(request: HttpRequest, turnovers_id: int):
 @router.get("/game/{game_id}/live-data", response=GameLiveDataOut)
 def get_game_live_data(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
-    return GameLiveDataOut(home_goals=game.home_goals, away_goals=game.away_goals,
+    return GameLiveDataOut(game_period_id=game.game_period_id,
+                           home_goals=game.home_goals, away_goals=game.away_goals,
                            home_faceoff_win=(round((game.home_faceoffs_won_count / game.faceoffs_count) * 100) if game.faceoffs_count > 0 else 0),
                            away_faceoff_win=(round(((game.faceoffs_count - game.home_faceoffs_won_count) / game.faceoffs_count) * 100) if game.faceoffs_count > 0 else 0),
                            home_defensive_zone_exit=game.home_defensive_zone_exit,

@@ -362,6 +362,7 @@ class GameEventOut(GameEventIn):
     number: int
 
 class GameLiveDataOut(Schema):
+    game_period_id: int | None
     home_goals: int
     away_goals: int
     home_faceoff_win: int
