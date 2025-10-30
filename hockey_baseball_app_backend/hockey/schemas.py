@@ -362,25 +362,21 @@ class GameEventIn(Schema):
     net_top_offset: int | None = None
     net_left_offset: int | None = None
 
+    # Turnover specific fields.
+    zone: str | None = Field(None, description="\"Attacking\", \"Neutral\" or \"Defending\"")
+
     note: str | None = None
     time_length: datetime.timedelta | None = None
 
     youtube_link: str | None = None
 
-    class Config(Schema.Config):
-        json_encoders = {
-            datetime.timedelta: lambda v: f"{v.total_seconds() // 60}:{v.total_seconds() % 60}"
-        }
+    # class Config(Schema.Config):
+    #     json_encoders = {
+    #         datetime.timedelta: lambda v: f"{v.total_seconds() // 60}:{v.total_seconds() % 60}"
+    #     }
 
 class GameEventOut(GameEventIn):
     id: int
     number: int
-
-    @staticmethod
-    def resolve_players(obj):
-        players_list = []
-        for player in obj.players.all():
-            players_list.append(player.id)
-        return players_list
 
 # endregion

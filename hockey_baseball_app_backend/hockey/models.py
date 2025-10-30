@@ -78,7 +78,7 @@ class Team(models.Model):
                 name='unique_team'
             )
         ]
-    
+
 class TeamSeason(models.Model):
 
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
@@ -594,6 +594,9 @@ class GameEvents(models.Model):
     # Shot specific fields.
     shot_type = models.ForeignKey(ShotType, on_delete=models.RESTRICT, null=True)
     is_scoring_chance = models.BooleanField(default=False)
+
+    # Turnover specific fields.
+    zone = models.CharField(max_length=20, null=True, blank=True, choices=[("Attacking", "Attacking"), ("Neutral", "Neutral"), ("Defending", "Defending")])
 
     # Spray chart points.
     ice_top_offset = models.IntegerField(null=True, blank=True)

@@ -25,7 +25,7 @@ from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEv
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, Turnovers)
 from .utils import api_response_templates as resp
-from .utils.db_utils import form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season, update_game_shots_from_event
+from .utils.db_utils import form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season, update_game_shots_from_event, update_game_turnovers_from_event
 
 router = Router(tags=["Hockey"])
 
@@ -499,7 +499,7 @@ def get_shot_types(request: HttpRequest):
 
 @router.get('/game-event/list', response=list[GameEventOut])
 def get_game_events(request: HttpRequest, game_id: int | None = None):
-    game_events = GameEvents.objects.prefetch_related('players').exclude(is_deprecated=True)
+    game_events = GameEvents.objects.exclude(is_deprecated=True)
     if game_id is not None:
         game_events = game_events.filter(game_id=game_id)
     game_events = game_events.order_by("number").all()
@@ -507,7 +507,7 @@ def get_game_events(request: HttpRequest, game_id: int | None = None):
 
 @router.get('/game-event/{game_event_id}', response=GameEventOut)
 def get_game_event(request: HttpRequest, game_event_id: int):
-    game_event = get_object_or_404(GameEvents.objects.prefetch_related('players'), id=game_event_id)
+    game_event = get_object_or_404(GameEvents.objects, id=game_event_id)
     return game_event
 
 @router.post('/game-event', response={200: ObjectId, 400: Message})
@@ -527,7 +527,16 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
 
             game: Game = game_event.game
 
-            update_game_shots_from_event(game, data, is_deleted=False)
+            if game_event.event_name.name.lower() == "shot on goal":
+                error = update_game_shots_from_event(game, data=data, is_deleted=False)
+                if error is not None:
+                    transaction.set_rollback(True)
+                    return 400, {"message": error}
+            elif game_event.event_name.name.lower() == "turnover":
+                error = update_game_turnovers_from_event(game, data=data, is_deleted=False)
+                if error is not None:
+                    transaction.set_rollback(True)
+                    return 400, {"message": error}
 
     except IntegrityError as e:
         return resp.entry_already_exists("Game event", str(e))
@@ -535,39 +544,63 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
 
 @router.patch("/game-event/{game_event_id}", response={204: None, 400: Message})
 def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[GameEventIn]):
+
+    game_event = get_object_or_404(GameEvents, id=game_event_id)
+    game: Game = game_event.game
+
     with transaction.atomic():
 
-        game_event = get_object_or_404(GameEvents, id=game_event_id)
-        game: Game = game_event.game
+        # Create the copy with deprecation.
 
-        with transaction.atomic():
-            game_event.is_deprecated = True
-            update_game_shots_from_event(game, event=game_event, is_deleted=True)
-            game_event.save()
+        game_event.pk = None
+        game_event._state.adding = True
+        game_event.is_deprecated = True
+        game_event.save()
 
-            GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
-
-            # Create the copy without deprecation.
-            game_event.pk = None
-            game_event._state.adding = True
-            game_event.save()
-
-            game_event.is_deprecated = False
-
-            for attr, value in data.items():
-                setattr(game_event, attr, value)
-            if game_event.goalie is None and game_event.player is None and game_event.player_2 is None:
+        # Undo old shot/turnover data.
+        if game_event.event_name.name.lower() == "shot on goal":
+            error = update_game_shots_from_event(game, event=game_event, is_deleted=True)
+            if error is not None:
                 transaction.set_rollback(True)
-                return 400, {"message": "Please specify goalie ID or player IDs."}
-            game_event.save()
-
-            if game_event.shot_type is not None and game_event.event_name.name.lower() != "shot on goal":
+                return 400, {"message": error}
+        elif game_event.event_name.name.lower() == "turnover":
+            error = update_game_turnovers_from_event(game, event=game_event, is_deleted=True)
+            if error is not None:
                 transaction.set_rollback(True)
-                return 400, {"message": "Shot type is only allowed for 'shot on goal' events."}
+                return 400, {"message": error}
 
-            update_game_shots_from_event(game, event=game_event, is_deleted=False)
+        game_event.save()
 
-            GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
+        GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
+
+        # Update the original event.
+
+        game_event = GameEvents.objects.get(id=game_event_id)
+
+        for attr, value in data.items():
+            setattr(game_event, attr, value)
+        if game_event.goalie is None and game_event.player is None and game_event.player_2 is None:
+            transaction.set_rollback(True)
+            return 400, {"message": "Please specify goalie ID or player IDs."}
+        game_event.save()
+
+        if game_event.shot_type is not None and game_event.event_name.name.lower() != "shot on goal":
+            transaction.set_rollback(True)
+            return 400, {"message": "Shot type is only allowed for 'shot on goal' events."}
+
+        # Apply new shot/turnover data.
+        if game_event.event_name.name.lower() == "shot on goal":
+            error = update_game_shots_from_event(game, event=game_event, is_deleted=False)
+            if error is not None:
+                transaction.set_rollback(True)
+                return 400, {"message": error}
+        elif game_event.event_name.name.lower() == "turnover":
+            error = update_game_turnovers_from_event(game, event=game_event, is_deleted=False)
+            if error is not None:
+                transaction.set_rollback(True)
+                return 400, {"message": error}
+
+        GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
 
     return 204, None
 
@@ -585,7 +618,15 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
         game_event.is_deprecated = True
         game_event.save()
 
-        update_game_shots_from_event(game_event.game, event=game_event, is_deleted=True)
+        if game_event.event_name.name.lower() == "shot on goal":
+            error = update_game_shots_from_event(game_event.game, event=game_event, is_deleted=True)
+            if error is not None:
+                transaction.set_rollback(True)
+                return 400, {"message": error}
+        elif game_event.event_name.name.lower() == "turnover":
+            error = update_game_turnovers_from_event(game_event.game, event=game_event, is_deleted=True)
+            if error is not None:
+                transaction.set_rollback(True)
 
         GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
 

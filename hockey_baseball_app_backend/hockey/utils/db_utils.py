@@ -83,15 +83,22 @@ def form_game_player_out(game_player: GamePlayer) -> GamePlayerOut:
         points=game_player.points
     )
 
-def update_game_shots_from_event(game: Game, data: GameEventIn | None = None, event: GameEvents | None = None, is_deleted: bool = False) -> None:
+def update_game_shots_from_event(game: Game, data: GameEventIn | None = None, event: GameEvents | None = None, is_deleted: bool = False) -> str | None:
     if data is not None:
         shot_type = ShotType.objects.get(id=data.shot_type_id) if data.shot_type_id is not None else None
     else:
         shot_type = event.shot_type
-    shot_type_name = shot_type.name.lower() if shot_type is not None else None
+
+    if shot_type is None:
+        return "Shot type ID is required"
+
+    shot_type_name = shot_type.name.lower()
     shot_team = Team.objects.get(id=(data.team_id if data is not None else event.team_id))
 
-    value_to_add = 1 if not is_deleted else -1
+    if shot_team is None or shot_team != game.home_team and shot_team != game.away_team:
+        return "Invalid team"
+
+    value_to_add = (1 if not is_deleted else -1)
 
     if shot_type_name is not None:
         if shot_team == game.home_team:
@@ -125,8 +132,49 @@ def update_game_shots_from_event(game: Game, data: GameEventIn | None = None, ev
             game.home_shots.blocked += value_to_add
         else:
             game.away_shots.blocked += value_to_add
+    else:
+        return "Invalid shot type"
     
-    if shot_type_name is not None:
-        game.home_shots.save()
-        game.away_shots.save()
-        game.save()
+    game.home_shots.save()
+    game.away_shots.save()
+    game.save()
+    return None
+
+def update_game_turnovers_from_event(game: Game, data: GameEventIn | None = None, event: GameEvents | None = None, is_deleted: bool = False) -> str | None:
+    if data is not None:
+        zone = data.zone
+    else:
+        zone = event.zone
+
+    if zone is None:
+        return "Zone is required"
+
+    zone_team = Team.objects.get(id=(data.team_id if data is not None else event.team_id))
+    if zone_team is None or zone_team != game.home_team and zone_team != game.away_team:
+        return "Invalid team"
+
+    value_to_add = (1 if not is_deleted else -1)
+
+    zone = zone.lower()
+    if zone == "attacking":
+        if zone_team == game.home_team:
+            game.home_turnovers.off_zone += value_to_add
+        else:
+            game.away_turnovers.off_zone += value_to_add
+    elif zone == "neutral":
+        if zone_team == game.home_team:
+            game.home_turnovers.neutral_zone += value_to_add
+        else:
+            game.away_turnovers.neutral_zone += value_to_add
+    elif zone == "defending":
+        if zone_team == game.home_team:
+            game.home_turnovers.def_zone += value_to_add
+        else:
+            game.away_turnovers.def_zone += value_to_add
+    else:
+        return "Invalid zone"
+
+    game.home_turnovers.save()
+    game.away_turnovers.save()
+    game.save()
+    return None
