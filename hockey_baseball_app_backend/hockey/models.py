@@ -168,7 +168,7 @@ class GoalieSeason(models.Model):
     goals_against = models.IntegerField(default=0)
     games_played = models.IntegerField(default=0)
     wins = models.IntegerField(default=0)
-    losses = models.IntegerField(default=0) # TODO: ask about "started/finished the game" in design.
+    losses = models.IntegerField(default=0)
     goals = models.IntegerField(default=0)
     assists = models.IntegerField(default=0)
     penalty_minutes = models.DurationField(default=datetime.timedelta(0))
@@ -463,10 +463,10 @@ class Game(models.Model):
 
     home_team = models.ForeignKey(Team, related_name='home_games', on_delete=models.RESTRICT)
     home_goals = models.IntegerField(default=0)
-    home_team_goalie = models.ForeignKey(Goalie, related_name='home_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
+    # home_team_goalie = models.ForeignKey(Goalie, related_name='home_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
     away_team = models.ForeignKey(Team, related_name='away_games', on_delete=models.RESTRICT)
     away_goals = models.IntegerField(default=0)
-    away_team_goalie = models.ForeignKey(Goalie, related_name='away_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
+    # away_team_goalie = models.ForeignKey(Goalie, related_name='away_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
     game_type = models.ForeignKey(GameType, on_delete=models.RESTRICT)
     tournament_name = models.CharField(max_length=150, null=True, blank=True)
     status = models.IntegerField(choices=GAME_STATUSES)
@@ -482,7 +482,9 @@ class Game(models.Model):
     game_period = models.ForeignKey(GamePeriod, on_delete=models.RESTRICT, null=True, blank=True)
 
     faceoffs_count = models.IntegerField(default=0)
+    """Cache field for the number of faceoffs in the game."""
     home_faceoffs_won_count = models.IntegerField(default=0)
+    """Cache field for the number of faceoffs won by the home team."""
 
     home_defensive_zone_exit = models.OneToOneField(DefensiveZoneExit, related_name='home_game', on_delete=models.RESTRICT)
     home_offensive_zone_entry = models.OneToOneField(OffensiveZoneEntry, related_name='home_game', on_delete=models.RESTRICT)
@@ -493,20 +495,6 @@ class Game(models.Model):
     away_offensive_zone_entry = models.OneToOneField(OffensiveZoneEntry, related_name='away_game', on_delete=models.RESTRICT)
     away_shots = models.OneToOneField(Shots, related_name='away_game', on_delete=models.RESTRICT)
     away_turnovers = models.OneToOneField(Turnovers, related_name='away_game', on_delete=models.RESTRICT)
-
-    # home_faceoff_win = models.GeneratedField(
-    #     expression=Case(When(faceoffs_count__gt=0, then=((F('home_faceoffs_won_count') / F('faceoffs_count')) * 100)),
-    #                     default=Value(0), output_field=models.FloatField()),
-    #     output_field=models.FloatField(),
-    #     db_persist=True,
-    #     verbose_name="Home Faceoff Win %")
-
-    # away_faceoff_win = models.GeneratedField(
-    #     expression=Case(When(faceoffs_count__gt=0, then=(((F('faceoffs_count') - F('home_faceoffs_won_count')) / F('faceoffs_count')) * 100)),
-    #                     default=Value(0), output_field=models.FloatField()),
-    #     output_field=models.FloatField(),
-    #     db_persist=True,
-    #     verbose_name="Away Faceoff Win %")
 
     is_deprecated = models.BooleanField(default=False)
 
@@ -545,6 +533,9 @@ class GameGoalie(models.Model):
     goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT)
     goals_against = models.IntegerField(default=0)
     saves = models.IntegerField(default=0)
+
+    start_period = models.ForeignKey(GamePeriod, on_delete=models.RESTRICT)
+    start_time = models.TimeField("Game time when the goalie started playing")
     
     shots_against = models.GeneratedField(
         expression=F('goals_against') + F('saves'),

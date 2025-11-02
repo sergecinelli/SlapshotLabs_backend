@@ -269,10 +269,8 @@ class TurnoversOut(TurnoversIn):
 
 class GameIn(Schema):
     home_team_id: int
-    home_goals: int | None = None
     home_team_goalie_id: int | None = None
     away_team_id: int
-    away_goals: int | None = None
     away_team_goalie_id: int | None = None
     game_type_id: int
     tournament_name: str | None = None
@@ -284,8 +282,29 @@ class GameIn(Schema):
     game_period_id: int | None = None
     game_type_group: str
 
-class GameOut(GameIn):
+class GameOut(Schema):
     id: int
+    home_team_id: int
+    away_team_id: int
+    game_type_id: int
+    tournament_name: str | None = None
+    status: int = Field(..., description="1 - Not Started, 2 - Game in Progress, 3 - Game Over")
+    date: datetime.date
+    time: datetime.time
+    season_id: int | None = None
+    rink_id: int
+
+    game_period_id: int | None = None
+    game_type_group: str
+
+class GameTypeRecordOut(Schema):
+    wins: int
+    losses: int
+    ties: int
+
+class GameExtendedOut(GameOut):
+    home_team_game_type_record: GameTypeRecordOut
+    away_team_game_type_record: GameTypeRecordOut
 
 class GameDashboardOut(Schema):
     upcoming_games: list[GameOut]
@@ -363,6 +382,8 @@ class GameEventOut(GameEventIn):
 
 class GameLiveDataOut(Schema):
     game_period_id: int | None
+    home_goalie_id: int | None
+    away_goalie_id: int | None
     home_goals: int
     away_goals: int
     home_faceoff_win: int

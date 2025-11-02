@@ -6,10 +6,24 @@ from hockey.models import Game, GameEvents, GameGoalie, GamePlayer, Goalie, Goal
 from hockey.schemas import GameEventIn, GameGoalieOut, GamePlayerOut, GoalieOut, PlayerOut
 
 
-def get_current_season() -> Season | None:
-    seasons = Season.objects.filter(start_date__lte=datetime.datetime.now(datetime.timezone.utc).date()).\
-        exclude(start_date__gt=datetime.datetime.now(datetime.timezone.utc).date()).order_by('-start_date').first()
+def get_current_season(date: datetime.date | None = None) -> Season | None:
+    """Get the current season based on the date. If no date is provided, use the current date."""
+    if date is None:
+        date = datetime.datetime.now(datetime.timezone.utc).date()
+    seasons = Season.objects.filter(start_date__lte=date).exclude(start_date__gt=date).order_by('-start_date').first()
     return seasons
+
+def get_no_goalie() -> Goalie:
+    """Gets the default goalie to be used if no goalie in net."""
+    no_goalie, _ = Goalie.objects.get_or_create(first_name="No Goalie")
+    return no_goalie
+
+def get_game_current_goalies(game: Game) -> tuple[int, int]:
+    home_goalie = GameGoalie.objects.filter(game=game, goalie__team=game.home_team).order_by('-start_period_id', '-start_time').first()
+    away_goalie = GameGoalie.objects.filter(game=game, goalie__team=game.away_team).order_by('-start_period_id', '-start_time').first()
+    return (home_goalie.goalie_id, away_goalie.goalie_id)
+
+# region Form outputs
 
 def form_goalie_out(goalie: Goalie, season: Season) -> GoalieOut:
     goalie_season: GoalieSeason
@@ -82,6 +96,10 @@ def form_game_player_out(game_player: GamePlayer) -> GamePlayerOut:
         faceoffs=game_player.faceoffs,
         points=game_player.points
     )
+
+# endregion Form outputs
+
+# region Game events updates
 
 def update_game_shots_from_event(game: Game, data: GameEventIn | None = None, event: GameEvents | None = None, is_deleted: bool = False) -> str | None:
     if data is not None:
@@ -204,3 +222,33 @@ def update_game_faceoffs_from_event(game: Game, data: GameEventIn | None = None,
 
     game.save()
     return None
+
+def update_game_goalie_from_event(data: GameEventIn | None = None, event: GameEvents | None = None, is_deleted: bool = False) -> str | None:
+    if data is not None:
+        game_id = data.game_id
+        goalie_id = data.goalie_id
+        start_period_id = data.period_id
+        start_time = data.time
+    else:
+        game_id = event.game_id
+        goalie_id = event.goalie_id
+        start_period_id = event.period_id
+        start_time = event.time
+
+    if start_time is None:
+        return "Start time is required"
+    
+    if start_period_id is None:
+        return "Start period is required"
+    
+    if goalie_id is None:
+        return "Goalie ID is required"
+
+    if is_deleted:
+        GameGoalie.objects.filter(game_id=game_id, goalie_id=goalie_id, start_period_id=start_period_id, start_time=start_time).delete()
+    else:
+        GameGoalie.objects.create(game_id=game_id, goalie_id=goalie_id, start_period_id=start_period_id, start_time=start_time)
+
+    return None
+    
+# endregion Game events updates

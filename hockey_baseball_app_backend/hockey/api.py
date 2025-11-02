@@ -16,8 +16,8 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
-from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameGoalieOut,
-                      GameIn, GameLiveDataOut, GameOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GoalieSeasonOut,
+from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
+                      GameIn, GameLiveDataOut, GameOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeRecordOut, GoalieSeasonOut,
                       GoalieSeasonsGet, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut)
@@ -25,7 +25,7 @@ from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEv
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, Turnovers)
 from .utils import api_response_templates as resp
-from .utils.db_utils import form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season, update_game_faceoffs_from_event, update_game_shots_from_event, update_game_turnovers_from_event
+from .utils.db_utils import form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season, get_game_current_goalies, get_no_goalie, update_game_faceoffs_from_event, update_game_goalie_from_event, update_game_shots_from_event, update_game_turnovers_from_event
 
 router = Router(tags=["Hockey"])
 
@@ -323,14 +323,41 @@ def get_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
     return game
 
+@router.get('/game/{game_id}/extra', response=GameExtendedOut)
+def get_game_extra(request: HttpRequest, game_id: int):
+    """Returns a game with extra information for the Live Dashboard."""
+    game = get_object_or_404(Game, id=game_id)
+    game_type_games = Game.objects.filter(game_type=game.game_type, season=game.season).\
+        filter(Q(home_team_id=game.home_team_id) | Q(away_team_id=game.away_team_id)).exclude(id=game_id)
+    home_team_record = GameTypeRecordOut(wins=0, losses=0, ties=0)
+    away_team_record = GameTypeRecordOut(wins=0, losses=0, ties=0)
+    for game_type_game in game_type_games:
+        if game_type_game.home_team_id == game.home_team_id:
+            if game_type_game.home_goals > game_type_game.away_goals:
+                home_team_record.wins += 1
+            elif game_type_game.home_goals < game_type_game.away_goals:
+                home_team_record.losses += 1
+            else:
+                home_team_record.ties += 1
+        elif game_type_game.away_team_id == game.away_team_id:
+            if game_type_game.away_goals > game_type_game.home_goals:
+                away_team_record.wins += 1
+            elif game_type_game.away_goals < game_type_game.home_goals:
+                away_team_record.losses += 1
+            else:
+                away_team_record.ties += 1
+    return GameExtendedOut(id=game.id, home_team_id=game.home_team_id, away_team_id=game.away_team_id,
+                           game_type_id=game.game_type_id, tournament_name=game.tournament_name, status=game.status,
+                           date=game.date, time=game.time, season_id=game.season_id, rink_id=game.rink_id,
+                           game_type_group=game.game_type_group,
+                           home_team_game_type_record=home_team_record, away_team_game_type_record=away_team_record)
+
 @router.post('/game', response={200: GameOut, 400: Message, 503: Message})
 def add_game(request: HttpRequest, data: GameIn):
     try:
-        if data.date.month <= 9:
-            season_start = data.date.year - 1
-        else:
-            season_start = data.date.year
-        game_season = Season.objects.filter(name__startswith=season_start)
+        game_season = get_current_season(data.date)
+        if game_season is None:
+            return 503, {"message": "No current season found."}
         with transaction.atomic(using='hockey'):
             home_defensive_zone_exit = DefensiveZoneExit.objects.create()
             home_offensive_zone_entry = OffensiveZoneEntry.objects.create()
@@ -350,6 +377,14 @@ def add_game(request: HttpRequest, data: GameIn):
                         away_turnovers=away_turnovers,
                         season=game_season,
                         **data.dict())
+            if data.home_team_goalie_id is not None:
+                GameGoalie.objects.create(game=game, goalie_id=data.home_team_goalie_id, start_period_id=1, start_time=datetime.time(0, 0, 0))
+            else:
+                GameGoalie.objects.create(game=game, goalie=get_no_goalie(), start_period_id=1, start_time=datetime.time(0, 0, 0))
+            if data.away_team_goalie_id is not None:
+                GameGoalie.objects.create(game=game, goalie_id=data.away_team_goalie_id, start_period_id=1, start_time=datetime.time(0, 0, 0))
+            else:
+                GameGoalie.objects.create(game=game, goalie=get_no_goalie(), start_period_id=1, start_time=datetime.time(0, 0, 0))
             if data.status == 3:
                 GameEventsAnalysisQueue.objects.create(game=game, action=1)
     except IntegrityError as e:
@@ -360,7 +395,7 @@ def add_game(request: HttpRequest, data: GameIn):
 @router.patch("/game/{game_id}", response={204: None})
 def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
     game = get_object_or_404(Game, id=game_id)
-    data_status = data['status']
+    data_status = data.get('status')
     with transaction.atomic(using='hockey'):
         if data_status is not None and game.status != data_status and data_status == 3:
             # Game has finished, add its data to statistics.
@@ -372,7 +407,21 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
             # Game has been updated after finishing, re-apply its data to statistics.
             GameEventsAnalysisQueue.objects.create(game=game, action=3)
             GameEventsAnalysisQueue.objects.create(game=game, action=1)
-            
+
+        if (data.get('home_team_goalie_id') is not None or data.get('away_team_goalie_id') is not None) and game.status > 1:
+            transaction.set_rollback(True, using='hockey')
+            return 400, {"message": "Goalies can only be set here before the game starts. After the game starts, goalies can only be added by the Goalie Change event."}
+
+        if data.get('home_team_goalie_id') is not None:
+            GameGoalie.objects.filter(game=game, goalie__team=game.home_team).delete()
+            GameGoalie.objects.create(game=game, goalie_id=data.get('home_team_goalie_id'), start_period_id=1, start_time=datetime.time(0, 0, 0))
+        if data.get('away_team_goalie_id') is not None:
+            GameGoalie.objects.filter(game=game, goalie__team=game.away_team).delete()
+            GameGoalie.objects.create(game=game, goalie_id=data.get('away_team_goalie_id'), start_period_id=1, start_time=datetime.time(0, 0, 0))
+
+        if data.get('date') is not None and game.date != data.get('date'):
+            game.season = get_current_season(data.get('date'))
+
         for attr, value in data.items():
             setattr(game, attr, value)
         game.save()
@@ -426,10 +475,15 @@ def get_game_turnovers(request: HttpRequest, turnovers_id: int):
 @router.get("/game/{game_id}/live-data", response=GameLiveDataOut)
 def get_game_live_data(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
+    home_goalie_id, away_goalie_id = get_game_current_goalies(game)
+    home_faceoff_win = (round((game.home_faceoffs_won_count / game.faceoffs_count) * 100) if game.faceoffs_count > 0 else 0)
+    away_faceoff_win = ((100 - home_faceoff_win) if game.faceoffs_count > 0 else 0)
     return GameLiveDataOut(game_period_id=game.game_period_id,
+                           home_goalie_id=home_goalie_id,
+                           away_goalie_id=away_goalie_id,
                            home_goals=game.home_goals, away_goals=game.away_goals,
-                           home_faceoff_win=(round((game.home_faceoffs_won_count / game.faceoffs_count) * 100) if game.faceoffs_count > 0 else 0),
-                           away_faceoff_win=(round(((game.faceoffs_count - game.home_faceoffs_won_count) / game.faceoffs_count) * 100) if game.faceoffs_count > 0 else 0),
+                           home_faceoff_win=home_faceoff_win,
+                           away_faceoff_win=away_faceoff_win,
                            home_defensive_zone_exit=game.home_defensive_zone_exit,
                            away_defensive_zone_exit=game.away_defensive_zone_exit,
                            home_offensive_zone_entry=game.home_offensive_zone_entry,
@@ -477,9 +531,9 @@ def get_player_games(request: HttpRequest, player_id: int, limit: int = 5):
 
 @router.post('/game-player/list', response={204: None})
 def set_game_players(request: HttpRequest, game_id: int, data: GamePlayersIn):
+    # TODO: asked about necessity of this function. If necessary, write a logic to remove only disappeared players and add new ones.
     with transaction.atomic(using='hockey'):
-        for goalie_id in data.goalie_ids:
-            GameGoalie.objects.create(game_id=game_id, goalie_id=goalie_id)
+        GamePlayer.objects.filter(game_id=game_id).delete()
         for player_id in data.player_ids:
             GamePlayer.objects.create(game_id=game_id, player_id=player_id)
     return 204, None
@@ -539,6 +593,10 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
                 error = update_game_faceoffs_from_event(game, data=data, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
+            elif game_event.event_name.name.lower() == "goalie change":
+                error = update_game_goalie_from_event(data=data, is_deleted=False)
+                if error is not None:
+                    raise ValueError(error)
 
     except ValueError as e:
         return 400, {"message": str(e)}
@@ -575,6 +633,10 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
                 error = update_game_faceoffs_from_event(game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
+            elif game_event.event_name.name.lower() == "goalie change":
+                error = update_game_goalie_from_event(event=game_event, is_deleted=True)
+                if error is not None:
+                    raise ValueError(error)
 
             game_event.save()
 
@@ -605,6 +667,10 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
                 error = update_game_faceoffs_from_event(game, event=game_event, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
+            elif game_event.event_name.name.lower() == "goalie change":
+                error = update_game_goalie_from_event(event=game_event, is_deleted=False)
+                if error is not None:
+                    raise ValueError(error)
 
             GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
 
@@ -617,33 +683,38 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
 def delete_game_event(request: HttpRequest, game_event_id: int):
     game_event = get_object_or_404(GameEvents, id=game_event_id)
     last_event = GameEvents.objects.filter(game_id=game_event.game_id).order_by('-number').first()
-    with transaction.atomic(using='hockey'):
-        if last_event.number != game_event.number:
-            # We are deleting event from middle of list: recalculate event numbers for this game.
-            events = GameEvents.objects.filter(game_id=game_event.game_id).exclude(id=game_event_id).order_by('number')
-            for i, evt in enumerate(events):
-                evt.number = i + 1
-                evt.save()
-        game_event.is_deprecated = True
-        game_event.save()
+    try:
+        with transaction.atomic(using='hockey'):
+            if last_event.number != game_event.number:
+                # We are deleting event from middle of list: recalculate event numbers for this game.
+                events = GameEvents.objects.filter(game_id=game_event.game_id).exclude(id=game_event_id).order_by('number')
+                for i, evt in enumerate(events):
+                    evt.number = i + 1
+                    evt.save()
+            game_event.is_deprecated = True
+            game_event.save()
 
-        if game_event.event_name.name.lower() == "shot on goal":
-            error = update_game_shots_from_event(game_event.game, event=game_event, is_deleted=True)
-            if error is not None:
-                transaction.set_rollback(True, using='hockey')
-                return 400, {"message": error}
-        elif game_event.event_name.name.lower() == "turnover":
-            error = update_game_turnovers_from_event(game_event.game, event=game_event, is_deleted=True)
-            if error is not None:
-                transaction.set_rollback(True, using='hockey')
-                return 400, {"message": error}
-        elif game_event.event_name.name.lower() == "faceoff":
-            error = update_game_faceoffs_from_event(game_event.game, event=game_event, is_deleted=True)
-            if error is not None:
-                transaction.set_rollback(True, using='hockey')
-                return 400, {"message": error}
+            if game_event.event_name.name.lower() == "shot on goal":
+                error = update_game_shots_from_event(game_event.game, event=game_event, is_deleted=True)
+                if error is not None:
+                    raise ValueError(error)
+            elif game_event.event_name.name.lower() == "turnover":
+                error = update_game_turnovers_from_event(game_event.game, event=game_event, is_deleted=True)
+                if error is not None:
+                    raise ValueError(error)
+            elif game_event.event_name.name.lower() == "faceoff":
+                error = update_game_faceoffs_from_event(game_event.game, event=game_event, is_deleted=True)
+                if error is not None:
+                    raise ValueError(error)
+            elif game_event.event_name.name.lower() == "goalie change":
+                error = update_game_goalie_from_event(event=game_event, is_deleted=True)
+                if error is not None:
+                    raise ValueError(error)
 
-        GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
+            GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
+
+    except ValueError as e:
+        return 400, {"message": str(e)}
 
     return 204, None
 
