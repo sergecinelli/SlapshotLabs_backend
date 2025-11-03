@@ -28,21 +28,37 @@ def get_game_current_goalies(game: Game) -> tuple[int, int]:
 def form_goalie_out(goalie: Goalie, season: Season) -> GoalieOut:
     goalie_season: GoalieSeason
     goalie_season, _ = GoalieSeason.objects.get_or_create(goalie=goalie, season=season)
-    goalie_out = GoalieOut.from_orm(goalie)
-    goalie_out.shots_on_goal = goalie_season.shots_on_goal
-    goalie_out.saves = goalie_season.saves
-    goalie_out.goals_against = goalie_season.goals_against
-    goalie_out.games_played = goalie_season.games_played
-    goalie_out.wins = goalie_season.wins
-    goalie_out.losses = goalie_season.losses
-    goalie_out.goals = goalie_season.goals
-    goalie_out.assists = goalie_season.assists
-    goalie_out.penalty_minutes = goalie_season.penalty_minutes
-    goalie_out.save_percents = goalie_season.save_percents
-    goalie_out.short_handed_goals_against = goalie_season.short_handed_goals_against
-    goalie_out.power_play_goals_against = goalie_season.power_play_goals_against
-    goalie_out.shots_on_goal_per_game = goalie_season.shots_on_goal_per_game
-    goalie_out.points = goalie_season.points
+    goalie_out = GoalieOut(
+        id=goalie.id,
+        first_name=goalie.player.first_name,
+        last_name=goalie.player.last_name,
+        birth_year=goalie.player.birth_year,
+        player_bio=goalie.player.player_bio,
+        birthplace_country=goalie.player.birthplace_country,
+        address_country=goalie.player.address_country,
+        address_region=goalie.player.address_region,
+        address_city=goalie.player.address_city,
+        address_street=goalie.player.address_street,
+        address_postal_code=goalie.player.address_postal_code,
+        height=goalie.player.height,
+        weight=goalie.player.weight,
+        shoots=goalie.player.shoots,
+        jersey_number=goalie.player.number,
+        shots_on_goal = goalie_season.shots_on_goal,
+        saves = goalie_season.saves,
+        goals_against = goalie_season.goals_against,
+        games_played = goalie_season.games_played,
+        wins = goalie_season.wins,
+        losses = goalie_season.losses,
+        goals = goalie_season.goals,
+        assists = goalie_season.assists,
+        penalty_minutes = goalie_season.penalty_minutes,
+        save_percents = goalie_season.save_percents,
+        short_handed_goals_against = goalie_season.short_handed_goals_against,
+        power_play_goals_against = goalie_season.power_play_goals_against,
+        shots_on_goal_per_game = goalie_season.shots_on_goal_per_game,
+        points = goalie_season.points
+    )
     return goalie_out
 
 def form_player_out(player: Player, season: Season) -> PlayerOut:

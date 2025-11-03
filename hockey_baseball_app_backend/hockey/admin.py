@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.apps import apps
 
 from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod,
-                     GamePlayer, GameType, Goalie, GoalieTransaction, OffensiveZoneEntry, Player, PlayerPosition, PlayerTransaction,
+                     GamePlayer, GameType, Goalie, OffensiveZoneEntry, Player, PlayerPosition, PlayerTransaction,
                      Season, ShotType, Shots, Team, TeamLevel, TeamSeason, Turnovers)
 
 class HasNameAdmin(admin.ModelAdmin):
@@ -36,9 +36,9 @@ class GameEventsAdmin(admin.ModelAdmin):
 
 @admin.register(GameGoalie)
 class GameGoalieAdmin(admin.ModelAdmin):
-    list_display = ['game__date', 'game__home_team__name', 'game__away_team__name', 'goalie__last_name', 'goalie__first_name']
+    list_display = ['game__date', 'game__home_team__name', 'game__away_team__name', 'goalie__player__last_name', 'goalie__player__first_name']
     ordering = ['-game__date']
-    search_fields = ['game__date', 'game__home_team__name', 'game__away_team__name', 'goalie__last_name', 'goalie__first_name']
+    search_fields = ['game__date', 'game__home_team__name', 'game__away_team__name', 'goalie__player__last_name', 'goalie__player__first_name']
 
 @admin.register(GamePlayer)
 class GamePlayerAdmin(admin.ModelAdmin):
@@ -48,15 +48,9 @@ class GamePlayerAdmin(admin.ModelAdmin):
 
 @admin.register(Goalie)
 class GoalieAdmin(admin.ModelAdmin):
-    list_display = ['last_name', 'first_name', 'team__name', 'jersey_number']
-    ordering = ['last_name']
-    search_fields = ['last_name', 'first_name', 'team__name', 'jersey_number']
-
-@admin.register(GoalieTransaction)
-class GoalieTransactionAdmin(admin.ModelAdmin):
-    list_display = ['date', 'goalie__last_name', 'goalie__first_name', 'team__name']
-    ordering = ['-date', 'goalie__last_name']
-    search_fields = ['date', 'goalie__last_name', 'goalie__first_name', 'team__name']
+    list_display = ['player__last_name', 'player__first_name', 'player__team__name', 'player__number']
+    ordering = ['player__last_name']
+    search_fields = ['player__last_name', 'player__first_name', 'player__team__name', 'player__number']
 
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):

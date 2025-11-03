@@ -33,7 +33,7 @@ router = Router(tags=["Hockey"])
 
 @router.get('/player-position/list', response=list[PlayerPositionOut])
 def get_player_positions(request: HttpRequest):
-    positions = PlayerPosition.objects.all()
+    positions = PlayerPosition.objects.exclude(name="Goalie").all()
     return positions
 
 @router.get('/goalie/list', response=list[GoalieOut])
@@ -55,22 +55,24 @@ def get_goalie(request: HttpRequest, goalie_id: int):
 
 @router.get('/goalie/{goalie_id}/photo', response=bytes)
 def get_goalie_photo(request: HttpRequest, goalie_id: int):
-    goalie = get_object_or_404(Goalie, id=goalie_id)
+    goalie = get_object_or_404(Player, id=goalie_id)
     return FileResponse(goalie.photo.open())
 
 @router.post('/goalie', response={200: ObjectId, 400: Message, 503: Message})
 def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] = None):
     try:
-        goalie = Goalie(**data.dict())
-        goalie.photo = photo
-        goalie.save()
+        with transaction.atomic(using='hockey'):
+            goalie = Player(position=PlayerPosition.objects.get(name="Goalie"), **data.dict())
+            goalie.photo = photo
+            goalie.save()
+            Goalie.objects.create(player=goalie)
     except IntegrityError as e:
         return resp.entry_already_exists("Goalie", str(e))
     return {"id": goalie.id}
 
 @router.patch("/goalie/{goalie_id}", response={204: None})
 def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn], photo: File[UploadedFile] = None):
-    goalie = get_object_or_404(Goalie, id=goalie_id)
+    goalie = get_object_or_404(Player, id=goalie_id)
     for attr, value in data.items():
         setattr(goalie, attr, value)
     if photo is not None:
@@ -83,7 +85,7 @@ def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn
 
 @router.delete("/goalie/{goalie_id}", response={204: None})
 def delete_goalie(request: HttpRequest, goalie_id: int):
-    goalie = get_object_or_404(Goalie, id=goalie_id)
+    goalie = get_object_or_404(Player, id=goalie_id)
     goalie.delete()
     return 204, None
 

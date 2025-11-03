@@ -1,30 +1,11 @@
 import datetime
+import inspect
 import uuid
 from django.db import models
 from django.db.models import Case, DateField, ExpressionWrapper, UniqueConstraint, When, Value, F
 from django.db.models.functions import Concat
 
-class PlayerPersonalInformationMixin(models.Model):
-
-    first_name = models.CharField(max_length=150)
-    last_name = models.CharField(max_length=150)
-    birth_year = models.DateField()
-    player_bio = models.TextField(null=True, blank=True)
-
-    birthplace_country = models.CharField(max_length=150)
-
-    address_country = models.CharField(max_length=150)
-    address_region = models.CharField(max_length=150)
-    address_city = models.CharField(max_length=150)
-    address_street = models.TextField()
-    address_postal_code = models.CharField(max_length=50)
-
-    height = models.IntegerField("Height, inches")
-    weight = models.IntegerField("Weight, lbs")
-    shoots = models.CharField(max_length=1, choices=[('L', 'Left Shot'), ('R', 'Right Shot')])
-
-    class Meta:
-        abstract = True
+from hockey.utils.constants import GameStatus, GoalType, NumName, RinkZone, get_constant_class_int_choices, get_constant_class_str_choices
 
 class TeamLevel(models.Model):
 
@@ -109,172 +90,30 @@ class PlayerPosition(models.Model):
     class Meta:
         db_table = "player_positions"
 
-class Goalie(PlayerPersonalInformationMixin, models.Model):
+class Player(models.Model):
 
-    team = models.ForeignKey(Team, null=True, on_delete=models.SET_NULL)
-    jersey_number = models.IntegerField()
-    photo = models.ImageField(upload_to='goalie_photo/', null=True, blank=True)
-    analysis = models.TextField(null=True, blank=True)
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    birth_year = models.DateField()
+    player_bio = models.TextField(null=True, blank=True)
 
-    saves_above_avg = models.IntegerField(default=0)    # Not used.
+    birthplace_country = models.CharField(max_length=150)
 
-    shots_on_goal = models.IntegerField(default=0)
-    saves = models.IntegerField(default=0)
-    goals_against = models.IntegerField(default=0)
-    games_played = models.IntegerField(default=0)
-    wins = models.IntegerField(default=0)
-    losses = models.IntegerField(default=0)
-    goals = models.IntegerField(default=0)
-    assists = models.IntegerField(default=0)
-    penalty_minutes = models.DurationField(default=datetime.timedelta(0))
+    address_country = models.CharField(max_length=150)
+    address_region = models.CharField(max_length=150)
+    address_city = models.CharField(max_length=150)
+    address_street = models.TextField()
+    address_postal_code = models.CharField(max_length=50)
 
-    short_handed_goals_against = models.IntegerField("SHGA", default=0)
-    """SHGA field."""
-
-    power_play_goals_against = models.IntegerField("PPGA", default=0)
-    """PPGA field."""
-
-    save_percents = models.GeneratedField(
-        expression=Case(When(games_played__gt=0, then=((F('saves') / (F('saves') + F('goals_against'))) * 100)),
-                        default=Value(0), output_field=models.FloatField()),
-        output_field=models.FloatField(),
-        db_persist=True,
-        verbose_name="Save %")
-
-    shots_on_goal_per_game = models.GeneratedField(
-        expression=Case(When(games_played__gt=0, then=(F('shots_on_goal') / F('games_played'))),
-                        default=Value(0), output_field=models.FloatField()),
-        output_field=models.FloatField(),
-        db_persist=True)
-
-    points = models.GeneratedField(
-        expression=F('goals') + F('assists'),
-        output_field=models.IntegerField(),
-        db_persist=True)
-
-    def __str__(self):
-        return f"{self.first_name} {self.last_name}"
-
-    class Meta:
-        db_table = "goalies"
-
-class GoalieSeason(models.Model):
-
-    goalie = models.ForeignKey(Goalie, on_delete=models.CASCADE)
-    season = models.ForeignKey(Season, on_delete=models.RESTRICT)
-
-    shots_on_goal = models.IntegerField(default=0)
-    saves = models.IntegerField(default=0)
-    goals_against = models.IntegerField(default=0)
-    games_played = models.IntegerField(default=0)
-    wins = models.IntegerField(default=0)
-    losses = models.IntegerField(default=0)
-    goals = models.IntegerField(default=0)
-    assists = models.IntegerField(default=0)
-    penalty_minutes = models.DurationField(default=datetime.timedelta(0))
-
-    short_handed_goals_against = models.IntegerField("SHGA", default=0)
-    """SHGA field."""
-
-    power_play_goals_against = models.IntegerField("PPGA", default=0)
-    """PPGA field."""
-
-    save_percents = models.GeneratedField(
-        expression=Case(When(games_played__gt=0, then=((F('saves') / (F('saves') + F('goals_against'))) * 100)),
-                        default=Value(0), output_field=models.FloatField()),
-        output_field=models.FloatField(),
-        db_persist=True,
-        verbose_name="Save %")
-
-    shots_on_goal_per_game = models.GeneratedField(
-        expression=Case(When(games_played__gt=0, then=(F('shots_on_goal') / F('games_played'))),
-                        default=Value(0), output_field=models.FloatField()),
-        output_field=models.FloatField(),
-        db_persist=True)
-
-    points = models.GeneratedField(
-        expression=F('goals') + F('assists'),
-        output_field=models.IntegerField(),
-        db_persist=True)
-
-    class Meta:
-        db_table = "goalie_seasons"
-
-    def __str__(self):
-        return f'{str(self.goalie)} - {self.season.name}'
-
-class GoalieTransaction(models.Model):
-
-    goalie = models.ForeignKey(Goalie, on_delete=models.CASCADE)
-    season = models.ForeignKey(Season, on_delete=models.RESTRICT)
-    date = models.DateField()
-    team = models.ForeignKey(Team, on_delete=models.RESTRICT)
-    number = models.IntegerField()
-    description = models.TextField()
-
-    def __str__(self):
-        return f"{self.goalie.first_name} {self.goalie.last_name} - {self.season.name}"
-
-    class Meta:
-        db_table = "goalie_transactions"
-
-class Player(PlayerPersonalInformationMixin, models.Model):
+    height = models.IntegerField("Height, inches")
+    weight = models.IntegerField("Weight, lbs")
+    shoots = models.CharField(max_length=1, choices=[('L', 'Left Shot'), ('R', 'Right Shot')])
 
     team = models.ForeignKey(Team, null=True, on_delete=models.SET_NULL)
     position = models.ForeignKey(PlayerPosition, on_delete=models.RESTRICT)
     number = models.IntegerField()
     photo = models.ImageField(upload_to='player_photo/', null=True, blank=True)
     analysis = models.TextField(null=True, blank=True)
-
-    shots_on_goal = models.IntegerField(default=0)
-    games_played = models.IntegerField(default=0)
-    goals = models.IntegerField(default=0)
-    assists = models.IntegerField(default=0)
-    scoring_chances = models.IntegerField(default=0)
-    blocked_shots = models.IntegerField(default=0)
-    penalties_drawn = models.DurationField(default=datetime.timedelta(0))
-    penalty_minutes = models.DurationField(default=datetime.timedelta(0))
-
-    power_play_goals_diff = models.IntegerField("PP +/-", default=0)
-    """PP +/- field."""
-
-    penalty_kill_diff = models.IntegerField("PK +/-", default=0)
-    """PK +/- field."""
-
-    five_on_five_diff = models.IntegerField("5v5 +/-", default=0)
-    """5v5 +/- field."""
-
-    overall_diff = models.IntegerField("Overall +/-", default=0)
-    """Overall +/- field."""
-
-    short_handed_goals = models.IntegerField("SHG", default=0)
-    """SHG field."""
-
-    power_play_goals = models.IntegerField("PPG", default=0)
-    """PPG field."""
-
-    faceoffs = models.IntegerField(default=0)
-    faceoffs_won = models.IntegerField(default=0)
-
-    turnovers = models.IntegerField(default=0)
-
-    faceoff_win_percents = models.GeneratedField(
-        expression=Case(When(games_played__gt=0, then=((F('faceoffs_won') / F('faceoffs'))* 100)),
-                        default=Value(0), output_field=models.FloatField()),
-        output_field=models.FloatField(),
-        db_persist=True,
-        verbose_name="Faceoff Win %")
-
-    shots_on_goal_per_game = models.GeneratedField(
-        expression=Case(When(games_played__gt=0, then=(F('shots_on_goal') / F('games_played'))),
-                        default=Value(0), output_field=models.FloatField()),
-        output_field=models.FloatField(),
-        db_persist=True)
-
-    points = models.GeneratedField(
-        expression=F('goals') + F('assists'),
-        output_field=models.IntegerField(),
-        db_persist=True)
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
@@ -358,6 +197,61 @@ class PlayerTransaction(models.Model):
     class Meta:
         db_table = "player_transactions"
 
+class Goalie(models.Model):
+
+    player = models.OneToOneField(Player, on_delete=models.CASCADE, primary_key=True)
+
+    def __str__(self):
+        return f"{self.player.first_name} {self.player.last_name}"
+
+    class Meta:
+        db_table = "goalies"
+
+class GoalieSeason(models.Model):
+
+    goalie = models.ForeignKey(Goalie, on_delete=models.CASCADE)
+    season = models.ForeignKey(Season, on_delete=models.RESTRICT)
+
+    shots_on_goal = models.IntegerField(default=0)
+    saves = models.IntegerField(default=0)
+    goals_against = models.IntegerField(default=0)
+    games_played = models.IntegerField(default=0)
+    wins = models.IntegerField(default=0)
+    losses = models.IntegerField(default=0)
+    goals = models.IntegerField(default=0)
+    assists = models.IntegerField(default=0)
+    penalty_minutes = models.DurationField(default=datetime.timedelta(0))
+
+    short_handed_goals_against = models.IntegerField("SHGA", default=0)
+    """SHGA field."""
+
+    power_play_goals_against = models.IntegerField("PPGA", default=0)
+    """PPGA field."""
+
+    save_percents = models.GeneratedField(
+        expression=Case(When(games_played__gt=0, then=((F('saves') / (F('saves') + F('goals_against'))) * 100)),
+                        default=Value(0), output_field=models.FloatField()),
+        output_field=models.FloatField(),
+        db_persist=True,
+        verbose_name="Save %")
+
+    shots_on_goal_per_game = models.GeneratedField(
+        expression=Case(When(games_played__gt=0, then=(F('shots_on_goal') / F('games_played'))),
+                        default=Value(0), output_field=models.FloatField()),
+        output_field=models.FloatField(),
+        db_persist=True)
+
+    points = models.GeneratedField(
+        expression=F('goals') + F('assists'),
+        output_field=models.IntegerField(),
+        db_persist=True)
+
+    class Meta:
+        db_table = "goalie_seasons"
+
+    def __str__(self):
+        return f'{str(self.goalie)} - {self.season.name}'
+
 class Arena(models.Model):
 
     name = models.CharField(max_length=150)
@@ -389,7 +283,7 @@ class DefensiveZoneExit(models.Model):
     passes = models.IntegerField("Pass", default=0)
 
     def __str__(self):
-        return f'{str(self.game)} - DefensiveZoneExit'
+        return f'{str(self.id)} - DefensiveZoneExit'
 
     class Meta:
         db_table = "defensive_zone_exit"
@@ -402,7 +296,7 @@ class OffensiveZoneEntry(models.Model):
     skate_in = models.IntegerField(default=0)
 
     def __str__(self):
-        return f'{str(self.game)} - OffensiveZoneEntry'
+        return f'{str(self.id)} - OffensiveZoneEntry'
 
     class Meta:
         db_table = "offensive_zone_entry"
@@ -416,7 +310,7 @@ class Shots(models.Model):
     blocked = models.IntegerField(default=0)
 
     def __str__(self):
-        return f'{str(self.game)} - Shots'
+        return f'{str(self.id)} - Shots'
 
     class Meta:
         db_table = "shots"
@@ -428,7 +322,7 @@ class Turnovers(models.Model):
     def_zone = models.IntegerField(default=0)
 
     def __str__(self):
-        return f'{str(self.game)} - Turnovers'
+        return f'{str(self.id)} - Turnovers'
 
     class Meta:
         db_table = "turnovers"
@@ -455,12 +349,6 @@ class GamePeriod(models.Model):
 
 class Game(models.Model):
 
-    GAME_STATUSES = [
-        (1, 'Not Started'),
-        (2, 'Game in Progress'),
-        (3, 'Game Over'),
-    ]
-
     home_team = models.ForeignKey(Team, related_name='home_games', on_delete=models.RESTRICT)
     home_goals = models.IntegerField(default=0)
     # home_team_goalie = models.ForeignKey(Goalie, related_name='home_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
@@ -469,7 +357,7 @@ class Game(models.Model):
     # away_team_goalie = models.ForeignKey(Goalie, related_name='away_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
     game_type = models.ForeignKey(GameType, on_delete=models.RESTRICT)
     tournament_name = models.CharField(max_length=150, null=True, blank=True)
-    status = models.IntegerField(choices=GAME_STATUSES)
+    status = models.IntegerField(choices=get_constant_class_int_choices(GameStatus), default=GameStatus.NOT_STARTED.num)
     season = models.ForeignKey(Season, on_delete=models.RESTRICT, null=True, blank=True)
     date = models.DateField()
     time = models.TimeField()
@@ -602,8 +490,11 @@ class GameEvents(models.Model):
     shot_type = models.ForeignKey(ShotType, on_delete=models.RESTRICT, null=True)
     is_scoring_chance = models.BooleanField(default=False, null=True, blank=True)
 
+    # Shot -> goal specific fields.
+    goal_type = models.CharField(choices=get_constant_class_str_choices(GoalType), max_length=20, null=True, blank=True)
+
     # Turnover specific fields.
-    zone = models.CharField(max_length=20, null=True, blank=True, choices=[("Attacking", "Attacking"), ("Neutral", "Neutral"), ("Defending", "Defending")])
+    zone = models.CharField(choices=get_constant_class_str_choices(RinkZone), max_length=20, null=True, blank=True)
 
     # Spray chart points.
     ice_top_offset = models.IntegerField(null=True, blank=True)

@@ -2,6 +2,8 @@ import datetime
 from typing import Optional
 from ninja import Field, Schema
 
+from hockey.utils.constants import GameStatus, GoalType, RinkZone, get_constant_class_int_description, get_constant_class_str_description
+
 # region Common
 
 class Message(Schema):
@@ -27,7 +29,7 @@ class GoalieIn(Schema):
     height: int = Field(..., description="Height in inches.")
     weight: int = Field(..., description="Weight in lbs.")
     shoots: str = Field(..., description="\"R\" - Right Shot, \"L\" - Left Shot.")
-    jersey_number: int
+    number: int = Field(..., alias="jersey_number")
     first_name: str
     last_name: str
     birth_year: datetime.date
@@ -38,8 +40,6 @@ class GoalieIn(Schema):
     address_city: str
     address_street: str
     address_postal_code: str
-    wins: int | None = None
-    losses: int | None = None
     analysis: str | None = None
 
 class GoalieOut(GoalieIn):
@@ -62,6 +62,8 @@ class GoalieOut(GoalieIn):
     """PPGA field."""
 
     shots_on_goal_per_game: float
+    wins: int
+    losses: int
     points: int
 
 class GoalieSeasonsGet(Schema):
@@ -274,7 +276,7 @@ class GameIn(Schema):
     away_team_goalie_id: int | None = None
     game_type_id: int
     tournament_name: str | None = None
-    status: int = Field(..., description="1 - Not Started, 2 - Game in Progress, 3 - Game Over")
+    status: int = Field(..., description=get_constant_class_int_description(GameStatus))
     date: datetime.date
     time: datetime.time
     rink_id: int
@@ -288,7 +290,7 @@ class GameOut(Schema):
     away_team_id: int
     game_type_id: int
     tournament_name: str | None = None
-    status: int = Field(..., description="1 - Not Started, 2 - Game in Progress, 3 - Game Over")
+    status: int = Field(..., description=get_constant_class_int_description(GameStatus))
     date: datetime.date
     time: datetime.time
     season_id: int | None = None
@@ -367,8 +369,11 @@ class GameEventIn(Schema):
     net_top_offset: int | None = None
     net_left_offset: int | None = None
 
+    # Shot -> goal specific fields.
+    goal_type: str | None = Field(None, description=get_constant_class_str_description(GoalType))
+
     # Turnover specific fields.
-    zone: str | None = Field(None, description="\"Attacking\", \"Neutral\" or \"Defending\"")
+    zone: str | None = Field(None, description=get_constant_class_str_description(RinkZone))
 
     note: str | None = None
     is_faceoff_won: bool | None = None
