@@ -25,7 +25,9 @@ from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEv
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, Turnovers)
 from .utils import api_response_templates as resp
-from .utils.db_utils import form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season, get_game_current_goalies, get_no_goalie, update_game_faceoffs_from_event, update_game_goalie_from_event, update_game_shots_from_event, update_game_turnovers_from_event
+from .utils.db_utils import (form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
+                             get_game_current_goalies, get_no_goalie, update_game_faceoffs_from_event,
+                             update_game_shots_from_event, update_game_turnovers_from_event)
 
 router = Router(tags=["Hockey"])
 
@@ -590,10 +592,6 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
                 error = update_game_faceoffs_from_event(game, data=data, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
-            elif game_event.event_name.name.lower() == "goalie change":
-                error = update_game_goalie_from_event(data=data, is_deleted=False)
-                if error is not None:
-                    raise ValueError(error)
 
     except ValueError as e:
         return 400, {"message": str(e)}
@@ -630,10 +628,6 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
                 error = update_game_faceoffs_from_event(game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
-            elif game_event.event_name.name.lower() == "goalie change":
-                error = update_game_goalie_from_event(event=game_event, is_deleted=True)
-                if error is not None:
-                    raise ValueError(error)
 
             game_event.save()
 
@@ -664,10 +658,6 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
                 error = update_game_faceoffs_from_event(game, event=game_event, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
-            elif game_event.event_name.name.lower() == "goalie change":
-                error = update_game_goalie_from_event(event=game_event, is_deleted=False)
-                if error is not None:
-                    raise ValueError(error)
 
             # GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
 
@@ -692,10 +682,6 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
                     raise ValueError(error)
             elif game_event.event_name.name.lower() == "faceoff":
                 error = update_game_faceoffs_from_event(game_event.game, event=game_event, is_deleted=True)
-                if error is not None:
-                    raise ValueError(error)
-            elif game_event.event_name.name.lower() == "goalie change":
-                error = update_game_goalie_from_event(event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
 

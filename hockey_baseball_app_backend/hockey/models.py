@@ -351,10 +351,10 @@ class Game(models.Model):
 
     home_team = models.ForeignKey(Team, related_name='home_games', on_delete=models.RESTRICT)
     home_goals = models.IntegerField(default=0)
-    # home_team_goalie = models.ForeignKey(Goalie, related_name='home_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
+    home_start_goalie = models.ForeignKey(Goalie, related_name='home_start_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
     away_team = models.ForeignKey(Team, related_name='away_games', on_delete=models.RESTRICT)
     away_goals = models.IntegerField(default=0)
-    # away_team_goalie = models.ForeignKey(Goalie, related_name='away_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
+    away_start_goalie = models.ForeignKey(Goalie, related_name='away_start_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
     game_type = models.ForeignKey(GameType, on_delete=models.RESTRICT)
     tournament_name = models.CharField(max_length=150, null=True, blank=True)
     status = models.IntegerField(choices=get_constant_class_int_choices(GameStatus), default=GameStatus.NOT_STARTED.num)
@@ -422,9 +422,6 @@ class GameGoalie(models.Model):
     goals_against = models.IntegerField(default=0)
     saves = models.IntegerField(default=0)
 
-    start_period = models.ForeignKey(GamePeriod, on_delete=models.RESTRICT)
-    start_time = models.TimeField("Game time when the goalie started playing")
-    
     shots_against = models.GeneratedField(
         expression=F('goals_against') + F('saves'),
         output_field=models.IntegerField(),

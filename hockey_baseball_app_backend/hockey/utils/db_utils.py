@@ -2,7 +2,7 @@ import datetime
 
 from django.db import IntegrityError
 
-from hockey.models import Game, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Player, PlayerSeason, Season, ShotType, Team
+from hockey.models import Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieChange, GoalieSeason, Player, PlayerSeason, Season, ShotType, Team
 from hockey.schemas import GameEventIn, GameGoalieOut, GamePlayerOut, GoalieOut, PlayerOut
 
 
@@ -19,9 +19,14 @@ def get_no_goalie() -> Goalie:
     return no_goalie
 
 def get_game_current_goalies(game: Game) -> tuple[int, int]:
-    home_goalie = GameGoalie.objects.filter(game=game, goalie__team=game.home_team).order_by('-start_period_id', '-start_time').first()
-    away_goalie = GameGoalie.objects.filter(game=game, goalie__team=game.away_team).order_by('-start_period_id', '-start_time').first()
-    return (home_goalie.goalie_id, away_goalie.goalie_id)
+    goalie_change_event_name = GameEventName.objects.get(name="Goalie Change")
+    home_goalie = GameEvents.objects.filter(game=game, event_name=goalie_change_event_name, team=game.home_team).order_by('-period_id', 'start_time').first()
+    if home_goalie is None:
+        home_goalie = game.home_start_goalie
+    away_goalie = GameEvents.objects.filter(game=game, event_name=goalie_change_event_name, team=game.away_team).order_by('-period_id', 'start_time').first()
+    if away_goalie is None:
+        away_goalie = game.away_start_goalie
+    return (home_goalie.player_id, away_goalie.player_id)
 
 # region Form outputs
 
@@ -239,32 +244,4 @@ def update_game_faceoffs_from_event(game: Game, data: GameEventIn | None = None,
     game.save()
     return None
 
-def update_game_goalie_from_event(data: GameEventIn | None = None, event: GameEvents | None = None, is_deleted: bool = False) -> str | None:
-    if data is not None:
-        game_id = data.game_id
-        goalie_id = data.goalie_id
-        start_period_id = data.period_id
-        start_time = data.time
-    else:
-        game_id = event.game_id
-        goalie_id = event.goalie_id
-        start_period_id = event.period_id
-        start_time = event.time
-
-    if start_time is None:
-        return "Start time is required"
-    
-    if start_period_id is None:
-        return "Start period is required"
-    
-    if goalie_id is None:
-        return "Goalie ID is required"
-
-    if is_deleted:
-        GameGoalie.objects.filter(game_id=game_id, goalie_id=goalie_id, start_period_id=start_period_id, start_time=start_time).delete()
-    else:
-        GameGoalie.objects.create(game_id=game_id, goalie_id=goalie_id, start_period_id=start_period_id, start_time=start_time)
-
-    return None
-    
 # endregion Game events updates
