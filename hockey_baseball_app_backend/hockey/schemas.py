@@ -29,7 +29,7 @@ class GoalieIn(Schema):
     height: int = Field(..., description="Height in inches.")
     weight: int = Field(..., description="Weight in lbs.")
     shoots: str = Field(..., description="\"R\" - Right Shot, \"L\" - Left Shot.")
-    number: int = Field(..., alias="jersey_number")
+    number: int = Field(...)
     first_name: str
     last_name: str
     birth_year: datetime.date
@@ -43,7 +43,7 @@ class GoalieIn(Schema):
     analysis: str | None = None
 
 class GoalieOut(GoalieIn):
-    id: int
+    id: int = Field(...)
     shots_on_goal: int
     saves: int
     goals_against: int
@@ -271,15 +271,20 @@ class TurnoversOut(TurnoversIn):
 
 class GameIn(Schema):
     home_team_id: int
-    home_team_goalie_id: int | None = None
+    home_start_goalie_id: int | None = Field(None, alias="home_team_goalie_id", description="ID of the goalie that started the game for the home team.")
     away_team_id: int
-    away_team_goalie_id: int | None = None
+    away_start_goalie_id: int | None = Field(None, alias="away_team_goalie_id", description="ID of the goalie that started the game for the away team.")
     game_type_id: int
     tournament_name: str | None = None
     status: int = Field(..., description=get_constant_class_int_description(GameStatus))
     date: datetime.date
     time: datetime.time
     rink_id: int
+
+    home_goalies: list[int]
+    away_goalies: list[int]
+    home_players: list[int]
+    away_players: list[int]
 
     game_period_id: int | None = None
     game_type_group: str

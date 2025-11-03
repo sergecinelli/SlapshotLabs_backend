@@ -371,6 +371,10 @@ def add_game(request: HttpRequest, data: GameIn):
             away_offensive_zone_entry = OffensiveZoneEntry.objects.create()
             away_shots = Shots.objects.create()
             away_turnovers = Turnovers.objects.create()
+            if data.home_start_goalie_id is None:
+                data.home_start_goalie_id = get_no_goalie().player_id
+            if data.away_start_goalie_id is None:
+                data.away_start_goalie_id = get_no_goalie().player_id
             game = Game.objects.create(home_defensive_zone_exit=home_defensive_zone_exit,
                         home_offensive_zone_entry=home_offensive_zone_entry,
                         home_shots=home_shots,
@@ -380,17 +384,14 @@ def add_game(request: HttpRequest, data: GameIn):
                         away_shots=away_shots,
                         away_turnovers=away_turnovers,
                         season=game_season,
-                        **data.dict())
-            if data.home_team_goalie_id is not None:
-                GameGoalie.objects.create(game=game, goalie_id=data.home_team_goalie_id, start_period_id=1, start_time=datetime.time(0, 0, 0))
-            else:
-                GameGoalie.objects.create(game=game, goalie=get_no_goalie(), start_period_id=1, start_time=datetime.time(0, 0, 0))
-            if data.away_team_goalie_id is not None:
-                GameGoalie.objects.create(game=game, goalie_id=data.away_team_goalie_id, start_period_id=1, start_time=datetime.time(0, 0, 0))
-            else:
-                GameGoalie.objects.create(game=game, goalie=get_no_goalie(), start_period_id=1, start_time=datetime.time(0, 0, 0))
-            if data.status == 3:
-                GameEventsAnalysisQueue.objects.create(game=game, action=1)
+                        **{k: v for k, v in data.dict().items() if k not in ["home_goalies", "away_goalies", "home_players", "away_players"]})
+            game.home_goalies.set(data.home_goalies)
+            game.away_goalies.set(data.away_goalies)
+            game.home_players.set(data.home_players)
+            game.away_players.set(data.away_players)
+            game.save()
+            # if data.status == 3:
+            #     GameEventsAnalysisQueue.objects.create(game=game, action=1)
     except IntegrityError as e:
         return resp.entry_already_exists("Game", str(e))
     game = Game.objects.get(id=game.id)
@@ -426,8 +427,16 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
         if data.get('date') is not None and game.date != data.get('date'):
             game.season = get_current_season(data.get('date'))
 
-        for attr, value in data.items():
+        for attr, value in {k: v for k, v in data.items() if k not in ["home_goalies", "away_goalies", "home_players", "away_players"]}.items():
             setattr(game, attr, value)
+        if data.get('home_goalies') is not None:
+            game.home_goalies.set(data['home_goalies'])
+        if data.get('away_goalies') is not None:
+            game.away_goalies.set(data['away_goalies'])
+        if data.get('home_players') is not None:
+            game.home_players.set(data['home_players'])
+        if data.get('away_players') is not None:
+            game.away_players.set(data['away_players'])
         game.save()
     return 204, None
 

@@ -2,7 +2,7 @@ import datetime
 
 from django.db import IntegrityError
 
-from hockey.models import Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieChange, GoalieSeason, Player, PlayerSeason, Season, ShotType, Team
+from hockey.models import Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Player, PlayerSeason, Season, ShotType, Team
 from hockey.schemas import GameEventIn, GameGoalieOut, GamePlayerOut, GoalieOut, PlayerOut
 
 
@@ -15,7 +15,7 @@ def get_current_season(date: datetime.date | None = None) -> Season | None:
 
 def get_no_goalie() -> Goalie:
     """Gets the default goalie to be used if no goalie in net."""
-    no_goalie, _ = Goalie.objects.get_or_create(first_name="No Goalie")
+    no_goalie, _ = Goalie.objects.get_or_create(player__first_name="No Goalie")
     return no_goalie
 
 def get_game_current_goalies(game: Game) -> tuple[int, int]:
@@ -34,7 +34,7 @@ def form_goalie_out(goalie: Goalie, season: Season) -> GoalieOut:
     goalie_season: GoalieSeason
     goalie_season, _ = GoalieSeason.objects.get_or_create(goalie=goalie, season=season)
     goalie_out = GoalieOut(
-        id=goalie.id,
+        id=goalie.player.id,
         first_name=goalie.player.first_name,
         last_name=goalie.player.last_name,
         birth_year=goalie.player.birth_year,
@@ -48,7 +48,7 @@ def form_goalie_out(goalie: Goalie, season: Season) -> GoalieOut:
         height=goalie.player.height,
         weight=goalie.player.weight,
         shoots=goalie.player.shoots,
-        jersey_number=goalie.player.number,
+        number=goalie.player.number,
         shots_on_goal = goalie_season.shots_on_goal,
         saves = goalie_season.saves,
         goals_against = goalie_season.goals_against,
@@ -69,27 +69,45 @@ def form_goalie_out(goalie: Goalie, season: Season) -> GoalieOut:
 def form_player_out(player: Player, season: Season) -> PlayerOut:
     player_season: PlayerSeason
     player_season, _ = PlayerSeason.objects.get_or_create(player=player, season=season)
-    player_out = PlayerOut.from_orm(player)
-    player_out.shots_on_goal = player_season.shots_on_goal
-    player_out.games_played = player_season.games_played
-    player_out.goals = player_season.goals
-    player_out.assists = player_season.assists
-    player_out.scoring_chances = player_season.scoring_chances
-    player_out.blocked_shots = player_season.blocked_shots
-    player_out.power_play_goals_diff = player_season.power_play_goals_diff
-    player_out.penalty_kill_diff = player_season.penalty_kill_diff
-    player_out.five_on_five_diff = player_season.five_on_five_diff
-    player_out.overall_diff = player_season.overall_diff
-    player_out.penalties_drawn = player_season.penalties_drawn
-    player_out.penalty_minutes = player_season.penalty_minutes
-    player_out.faceoff_win_percents = player_season.faceoff_win_percents
-    player_out.short_handed_goals = player_season.short_handed_goals
-    player_out.power_play_goals = player_season.power_play_goals
-    player_out.faceoffs = player_season.faceoffs
-    player_out.faceoffs_won = player_season.faceoffs_won
-    player_out.turnovers = player_season.turnovers
-    player_out.shots_on_goal_per_game = player_season.shots_on_goal_per_game
-    player_out.points = player_season.points
+    player_out = PlayerOut(
+        id=player.id,
+        first_name=player.first_name,
+        last_name=player.last_name,
+        birth_year=player.birth_year,
+        birthplace_country=player.birthplace_country,
+        address_country=player.address_country,
+        address_region=player.address_region,
+        address_city=player.address_city,
+        address_street=player.address_street,
+        address_postal_code=player.address_postal_code,
+        height=player.height,
+        weight=player.weight,
+        shoots=player.shoots,
+        number=player.number,
+        position_id=player.position_id,
+        team_id=player.team_id,
+        analysis=player.analysis,
+        shots_on_goal=player_season.shots_on_goal,
+        games_played=player_season.games_played,
+        goals=player_season.goals,
+        assists=player_season.assists,
+        scoring_chances=player_season.scoring_chances,
+        blocked_shots=player_season.blocked_shots,
+        power_play_goals_diff=player_season.power_play_goals_diff,
+        penalty_kill_diff=player_season.penalty_kill_diff,
+        five_on_five_diff=player_season.five_on_five_diff,
+        overall_diff=player_season.overall_diff,
+        penalties_drawn=player_season.penalties_drawn,
+        penalty_minutes=player_season.penalty_minutes,
+        faceoff_win_percents=player_season.faceoff_win_percents,
+        short_handed_goals=player_season.short_handed_goals,
+        power_play_goals=player_season.power_play_goals,
+        faceoffs=player_season.faceoffs,
+        faceoffs_won=player_season.faceoffs_won,
+        turnovers=player_season.turnovers,
+        shots_on_goal_per_game=player_season.shots_on_goal_per_game,
+        points=player_season.points
+    )
     return player_out
 
 def form_game_goalie_out(game_goalie: GameGoalie) -> GameGoalieOut:
