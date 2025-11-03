@@ -477,17 +477,16 @@ class ShotType(models.Model):
 class GameEvents(models.Model):
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
-    number = models.IntegerField()
     event_name = models.ForeignKey(GameEventName, on_delete=models.RESTRICT)
     time = models.TimeField(auto_now=False, auto_now_add=False)
     period = models.ForeignKey(GamePeriod, on_delete=models.RESTRICT)
     team = models.ForeignKey(Team, on_delete=models.RESTRICT)
-    player = models.ForeignKey(Player, on_delete=models.RESTRICT, null=True, related_name='player')
-    player_2 = models.ForeignKey(Player, on_delete=models.RESTRICT, null=True, related_name='player_2')
-    goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT, null=True)
+    player = models.ForeignKey(Player, on_delete=models.RESTRICT, null=True, blank=True, related_name='player')
+    player_2 = models.ForeignKey(Player, on_delete=models.RESTRICT, null=True, blank=True, related_name='player_2')
+    goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT, null=True, blank=True)
 
     # Shot specific fields.
-    shot_type = models.ForeignKey(ShotType, on_delete=models.RESTRICT, null=True)
+    shot_type = models.ForeignKey(ShotType, on_delete=models.RESTRICT, null=True, blank=True)
     is_scoring_chance = models.BooleanField(default=False, null=True, blank=True)
 
     # Shot -> goal specific fields.

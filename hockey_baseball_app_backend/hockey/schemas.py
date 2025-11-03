@@ -383,7 +383,6 @@ class GameEventIn(Schema):
 
 class GameEventOut(GameEventIn):
     id: int
-    number: int
 
 class GameLiveDataOut(Schema):
     game_period_id: int | None

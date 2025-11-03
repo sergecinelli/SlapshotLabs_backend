@@ -494,7 +494,12 @@ def get_game_live_data(request: HttpRequest, game_id: int):
                            away_shots=game.away_shots,
                            home_turnovers=game.home_turnovers,
                            away_turnovers=game.away_turnovers,
-                           events=game.gameevents_set.filter(is_deprecated=False).order_by('number'))
+                           events=game.gameevents_set.exclude(is_deprecated=True).order_by("period", "-time").all())
+
+@router.get('/game/{game_id}/events', response=list[GameEventOut])
+def get_game_events(request: HttpRequest, game_id: int):
+    game_events = GameEvents.objects.filter(game_id=game_id).exclude(is_deprecated=True).order_by("period", "-time").all()
+    return game_events
 
 # endregion
 
@@ -554,14 +559,6 @@ def get_shot_types(request: HttpRequest):
     shot_types = ShotType.objects.order_by('name').all()
     return shot_types
 
-@router.get('/game-event/list', response=list[GameEventOut])
-def get_game_events(request: HttpRequest, game_id: int | None = None):
-    game_events = GameEvents.objects.exclude(is_deprecated=True)
-    if game_id is not None:
-        game_events = game_events.filter(game_id=game_id)
-    game_events = game_events.order_by("number").all()
-    return game_events
-
 @router.get('/game-event/{game_event_id}', response=GameEventOut)
 def get_game_event(request: HttpRequest, game_event_id: int):
     game_event = get_object_or_404(GameEvents.objects, id=game_event_id)
@@ -573,8 +570,6 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
         if data.goalie_id is None and data.player_id is None and data.player_2_id is None:
             return 400, {"message": "Please specify goalie ID or player IDs."}
         data_new = data.dict()
-        previous_event = GameEvents.objects.filter(game_id=data.game_id).order_by('-number').first()
-        data_new['number'] = (1 if previous_event is None else (previous_event.number + 1))
         with transaction.atomic(using='hockey'):
             game_event = GameEvents.objects.create(**data_new)
 
@@ -617,10 +612,10 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
 
             # Create the copy with deprecation.
 
-            game_event.pk = None
-            game_event._state.adding = True
-            game_event.is_deprecated = True
-            game_event.save()
+            # game_event.pk = None
+            # game_event._state.adding = True
+            # game_event.is_deprecated = True
+            # game_event.save()
 
             # Undo old shot/turnover data.
             if game_event.event_name.name.lower() == "shot on goal":
@@ -642,7 +637,7 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
 
             game_event.save()
 
-            GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
+            # GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
 
             # Update the original event.
 
@@ -674,7 +669,7 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
                 if error is not None:
                     raise ValueError(error)
 
-            GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
+            # GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
 
     except ValueError as e:
         return 400, {"message": str(e)}
@@ -684,17 +679,8 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
 @router.delete("/game-event/{game_event_id}", response={204: None})
 def delete_game_event(request: HttpRequest, game_event_id: int):
     game_event = get_object_or_404(GameEvents, id=game_event_id)
-    last_event = GameEvents.objects.filter(game_id=game_event.game_id).order_by('-number').first()
     try:
         with transaction.atomic(using='hockey'):
-            if last_event.number != game_event.number:
-                # We are deleting event from middle of list: recalculate event numbers for this game.
-                events = GameEvents.objects.filter(game_id=game_event.game_id).exclude(id=game_event_id).order_by('number')
-                for i, evt in enumerate(events):
-                    evt.number = i + 1
-                    evt.save()
-            game_event.is_deprecated = True
-            game_event.save()
 
             if game_event.event_name.name.lower() == "shot on goal":
                 error = update_game_shots_from_event(game_event.game, event=game_event, is_deleted=True)
@@ -713,7 +699,9 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
                 if error is not None:
                     raise ValueError(error)
 
-            GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
+            game_event.delete()
+
+            # GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
 
     except ValueError as e:
         return 400, {"message": str(e)}
