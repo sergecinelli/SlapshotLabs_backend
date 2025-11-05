@@ -269,13 +269,18 @@ class TurnoversIn(Schema):
 class TurnoversOut(TurnoversIn):
     id: int
 
+class GameTypeOut(Schema):
+    id: int
+    name: str
+    game_type_names: list[ObjectIdName] | None = Field(None, description="List of game type names for the game type.")
+
 class GameIn(Schema):
     home_team_id: int
     home_start_goalie_id: int | None = Field(None, alias="home_team_goalie_id", description="ID of the goalie that started the game for the home team.")
     away_team_id: int
     away_start_goalie_id: int | None = Field(None, alias="away_team_goalie_id", description="ID of the goalie that started the game for the away team.")
     game_type_id: int
-    tournament_name: str | None = None
+    game_type_name: str | None = None
     status: int = Field(..., description=get_constant_class_int_description(GameStatus))
     date: datetime.date
     time: datetime.time
@@ -294,7 +299,7 @@ class GameOut(Schema):
     home_team_id: int
     away_team_id: int
     game_type_id: int
-    tournament_name: str | None = None
+    game_type_name: str | None = None
     status: int = Field(..., description=get_constant_class_int_description(GameStatus))
     date: datetime.date
     time: datetime.time

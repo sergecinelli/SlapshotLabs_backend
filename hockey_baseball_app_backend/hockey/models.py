@@ -1,11 +1,12 @@
 import datetime
 import inspect
 import uuid
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, DateField, ExpressionWrapper, UniqueConstraint, When, Value, F
 from django.db.models.functions import Concat
 
-from hockey.utils.constants import GameStatus, GoalType, NumName, RinkZone, get_constant_class_int_choices, get_constant_class_str_choices
+from hockey.utils.constants import GameStatus, GoalType, IdName, RinkZone, get_constant_class_int_choices, get_constant_class_str_choices
 
 class TeamLevel(models.Model):
 
@@ -337,6 +338,21 @@ class GameType(models.Model):
     class Meta:
         db_table = "game_types"
 
+class GameTypeName(models.Model):
+    name = models.CharField(max_length=150)
+    is_actual = models.BooleanField(default=True)
+    game_type = models.ForeignKey(GameType, on_delete=models.RESTRICT)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        db_table = "game_type_names"
+
+        constraints = [
+            UniqueConstraint(fields=['game_type', 'name'], name='unique_game_type_name')
+        ]
+
 class GamePeriod(models.Model):
 
     name = models.CharField(max_length=10)
@@ -360,8 +376,8 @@ class Game(models.Model):
     away_players = models.ManyToManyField(Player, related_name='away_games')
     away_start_goalie = models.ForeignKey(Goalie, related_name='away_start_games', on_delete=models.RESTRICT, null=True, blank=True)   # TODO: make not null
     game_type = models.ForeignKey(GameType, on_delete=models.RESTRICT)
-    tournament_name = models.CharField(max_length=150, null=True, blank=True)
-    status = models.IntegerField(choices=get_constant_class_int_choices(GameStatus), default=GameStatus.NOT_STARTED.num)
+    game_type_name = models.ForeignKey(GameTypeName, on_delete=models.RESTRICT, null=True, blank=True)
+    status = models.IntegerField(choices=get_constant_class_int_choices(GameStatus), default=GameStatus.NOT_STARTED.id)
     season = models.ForeignKey(Season, on_delete=models.RESTRICT, null=True, blank=True)
     date = models.DateField()
     time = models.TimeField()
@@ -389,6 +405,16 @@ class Game(models.Model):
     away_turnovers = models.OneToOneField(Turnovers, related_name='away_game', on_delete=models.RESTRICT)
 
     is_deprecated = models.BooleanField(default=False)
+
+    def clean(self):
+        if self.home_team == self.away_team:
+            raise ValidationError("Home team and away team cannot be the same.")
+        if self.home_start_goalie == self.away_start_goalie:
+            raise ValidationError("Home start goalie and away start goalie cannot be the same.")
+        if self.game_type.name == "Tournament" and self.game_type_name is None:
+            raise ValidationError("Tournament game must have a tournament name.")
+        if self.game_type.name != "Tournament" and self.game_type_name is not None:
+            raise ValidationError("Non-tournament game cannot have a tournament name.")
 
     def __str__(self):
         return f'"{self.home_team.name}" - "{self.away_team.name}" - {str(self.date)} {str(self.time)}'

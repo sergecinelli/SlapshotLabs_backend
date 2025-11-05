@@ -3,7 +3,7 @@ from django.apps import apps
 
 from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod,
                      GamePlayer, GameType, Goalie, OffensiveZoneEntry, Player, PlayerPosition, PlayerTransaction,
-                     Season, ShotType, Shots, Team, TeamLevel, TeamSeason, Turnovers)
+                     Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers)
 
 class HasNameAdmin(admin.ModelAdmin):
     list_display = ['name']
@@ -21,6 +21,12 @@ class ArenaRinkAdmin(admin.ModelAdmin):
     list_display = ['arena__name', 'name']
     ordering = ['arena__name', 'name']
     search_fields = ['arena__name', 'name']
+
+@admin.register(GameTypeName)
+class GameTypeNameAdmin(admin.ModelAdmin):
+    list_display = ['game_type__name', 'name', 'is_actual']
+    ordering = ['game_type__name', 'name']
+    search_fields = ['game_type__name', 'name', 'is_actual']
 
 @admin.register(Game)
 class GameAdmin(admin.ModelAdmin):

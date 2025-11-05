@@ -17,13 +17,13 @@ import faker.providers
 from faker_animals import AnimalsProvider
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
-                      GameIn, GameLiveDataOut, GameOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeRecordOut, GoalieSeasonOut,
+                      GameIn, GameLiveDataOut, GameOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
                       GoalieSeasonsGet, HighlightReelIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut)
 from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, HighlightReel, OffensiveZoneEntry, Player,
-                     PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, Turnovers)
+                     PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers)
 from .utils import api_response_templates as resp
 from .utils.db_utils import (form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
                              get_game_current_goalies, get_no_goalie, update_game_faceoffs_from_event,
@@ -296,10 +296,17 @@ def get_arena_rinks(request: HttpRequest):
     arena_rinks = ArenaRink.objects.all()
     return arena_rinks
 
-@router.get('/game-type/list', response=list[ObjectIdName])
+@router.get('/game-type/list', response=list[GameTypeOut])
 def get_game_types(request: HttpRequest):
     game_types = GameType.objects.all()
-    return game_types
+    game_types_out = []
+    for game_type in game_types:
+        game_type_out = GameTypeOut(id=game_type.id, name=game_type.name, game_type_names=None)
+        if game_type.gametypename_set.filter(is_actual=True).count() > 0:
+            game_type_out.game_type_names = [ObjectIdName(id=game_type_name.id, name=game_type_name.name)
+                                                           for game_type_name in game_type.gametypename_set.filter(is_actual=True)]
+        game_types_out.append(game_type_out)
+    return game_types_out
 
 @router.get('/game-period/list', response=list[ObjectIdName])
 def get_game_periods(request: HttpRequest):
@@ -328,7 +335,7 @@ def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | Non
 def get_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
     return GameOut(id=game.id, home_team_id=game.home_team_id, away_team_id=game.away_team_id,
-                   game_type_id=game.game_type_id, tournament_name=game.tournament_name, status=game.status,
+                   game_type_id=game.game_type_id, game_type_name=game.game_type_name.name, status=game.status,
                    date=game.date, time=game.time, season_id=game.season_id, arena_id=game.rink.arena_id, rink_id=game.rink_id,
                    game_period_id=game.game_period_id)
 
@@ -338,8 +345,8 @@ def get_game_extra(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
     game_type_games = Game.objects.filter(game_type=game.game_type, season=game.season).\
         filter(Q(home_team_id=game.home_team_id) | Q(away_team_id=game.away_team_id)).exclude(id=game_id)
-    if game.tournament_name is not None:
-        game_type_games = game_type_games.filter(tournament_name__iexact=game.tournament_name)
+    if game.game_type_name is not None:
+        game_type_games = game_type_games.filter(game_type_name=game.game_type_name)
     home_team_record = GameTypeRecordOut(wins=0, losses=0, ties=0)
     away_team_record = GameTypeRecordOut(wins=0, losses=0, ties=0)
     for game_type_game in game_type_games:
@@ -358,7 +365,7 @@ def get_game_extra(request: HttpRequest, game_id: int):
             else:
                 away_team_record.ties += 1
     return GameExtendedOut(id=game.id, home_team_id=game.home_team_id, away_team_id=game.away_team_id,
-                           game_type_id=game.game_type_id, tournament_name=game.tournament_name, status=game.status,
+                           game_type_id=game.game_type_id, game_type_name=game.game_type_name.name, status=game.status,
                            date=game.date, time=game.time, season_id=game.season_id, arena_id=game.rink.arena_id, rink_id=game.rink_id,
                            home_team_game_type_record=home_team_record, away_team_game_type_record=away_team_record)
 
