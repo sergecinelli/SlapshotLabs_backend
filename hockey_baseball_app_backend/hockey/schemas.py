@@ -272,7 +272,7 @@ class TurnoversOut(TurnoversIn):
 class GameTypeOut(Schema):
     id: int
     name: str
-    game_type_names: list[ObjectIdName] | None = Field(None, description="List of game type names for the game type.")
+    game_type_names: list[ObjectIdName] = Field(..., description="List of game type names for the game type.")
 
 class GamePeriodOut(Schema):
     id: int

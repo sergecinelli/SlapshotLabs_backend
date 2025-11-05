@@ -301,10 +301,9 @@ def get_game_types(request: HttpRequest):
     game_types = GameType.objects.all()
     game_types_out = []
     for game_type in game_types:
-        game_type_out = GameTypeOut(id=game_type.id, name=game_type.name, game_type_names=None)
-        if game_type.gametypename_set.filter(is_actual=True).count() > 0:
-            game_type_out.game_type_names = [ObjectIdName(id=game_type_name.id, name=game_type_name.name)
-                                                           for game_type_name in game_type.gametypename_set.filter(is_actual=True)]
+        game_type_out = GameTypeOut(id=game_type.id, name=game_type.name, game_type_names=[
+            ObjectIdName(id=game_type_name.id, name=game_type_name.name)
+            for game_type_name in game_type.gametypename_set.filter(is_actual=True)])
         game_types_out.append(game_type_out)
     return game_types_out
 
