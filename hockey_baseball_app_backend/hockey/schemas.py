@@ -285,7 +285,7 @@ class GameIn(Schema):
     away_team_id: int
     away_start_goalie_id: int | None = Field(None, alias="away_team_goalie_id", description="ID of the goalie that started the game for the away team.")
     game_type_id: int
-    game_type_name: str | None = None
+    game_type_name_id: int | None = None
     status: int = Field(..., description=get_constant_class_int_description(GameStatus))
     date: datetime.date
     time: datetime.time
