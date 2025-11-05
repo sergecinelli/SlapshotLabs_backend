@@ -299,10 +299,11 @@ class GameOut(Schema):
     date: datetime.date
     time: datetime.time
     season_id: int | None = None
+    arena_id: int
     rink_id: int
 
     game_period_id: int | None = None
-    game_type_group: str
+    # game_type_group: str
 
 class GameTypeRecordOut(Schema):
     wins: int
@@ -406,5 +407,24 @@ class GameLiveDataOut(Schema):
     home_turnovers: TurnoversOut
     away_turnovers: TurnoversOut
     events: list[GameEventOut]
+
+# endregion
+
+# region Highlight Reels
+
+class HighlightReelIn(Schema):
+    name: str
+    description: str
+    game_events: list[int]
+
+class HighlightReelListOut(Schema):
+    id: int
+    name: str
+    description: str
+    created_by: str
+    date: datetime.date
+
+class HighlightReelOut(HighlightReelListOut):
+    game_events: list[GameEventOut]
 
 # endregion

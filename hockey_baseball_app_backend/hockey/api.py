@@ -18,11 +18,11 @@ from faker_animals import AnimalsProvider
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeRecordOut, GoalieSeasonOut,
-                      GoalieSeasonsGet, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
+                      GoalieSeasonsGet, HighlightReelIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut)
 from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
-                     GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, OffensiveZoneEntry, Player,
+                     GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, HighlightReel, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, Turnovers)
 from .utils import api_response_templates as resp
 from .utils.db_utils import (form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
@@ -30,6 +30,8 @@ from .utils.db_utils import (form_game_goalie_out, form_game_player_out, form_go
                              update_game_shots_from_event, update_game_turnovers_from_event)
 
 router = Router(tags=["Hockey"])
+
+User = get_user_model()
 
 # region Goalie, player
 
@@ -325,7 +327,10 @@ def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | Non
 @router.get('/game/{game_id}', response=GameOut)
 def get_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
-    return game
+    return GameOut(id=game.id, home_team_id=game.home_team_id, away_team_id=game.away_team_id,
+                   game_type_id=game.game_type_id, tournament_name=game.tournament_name, status=game.status,
+                   date=game.date, time=game.time, season_id=game.season_id, arena_id=game.rink.arena_id, rink_id=game.rink_id,
+                   game_period_id=game.game_period_id)
 
 @router.get('/game/{game_id}/extra', response=GameExtendedOut)
 def get_game_extra(request: HttpRequest, game_id: int):
@@ -333,6 +338,8 @@ def get_game_extra(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
     game_type_games = Game.objects.filter(game_type=game.game_type, season=game.season).\
         filter(Q(home_team_id=game.home_team_id) | Q(away_team_id=game.away_team_id)).exclude(id=game_id)
+    if game.tournament_name is not None:
+        game_type_games = game_type_games.filter(tournament_name__iexact=game.tournament_name)
     home_team_record = GameTypeRecordOut(wins=0, losses=0, ties=0)
     away_team_record = GameTypeRecordOut(wins=0, losses=0, ties=0)
     for game_type_game in game_type_games:
@@ -352,8 +359,7 @@ def get_game_extra(request: HttpRequest, game_id: int):
                 away_team_record.ties += 1
     return GameExtendedOut(id=game.id, home_team_id=game.home_team_id, away_team_id=game.away_team_id,
                            game_type_id=game.game_type_id, tournament_name=game.tournament_name, status=game.status,
-                           date=game.date, time=game.time, season_id=game.season_id, rink_id=game.rink_id,
-                           game_type_group=game.game_type_group,
+                           date=game.date, time=game.time, season_id=game.season_id, arena_id=game.rink.arena_id, rink_id=game.rink_id,
                            home_team_game_type_record=home_team_record, away_team_game_type_record=away_team_record)
 
 @router.post('/game', response={200: GameOut, 400: Message, 503: Message})
@@ -702,6 +708,46 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
         return 400, {"message": str(e)}
 
     return 204, None
+
+# endregion
+
+# region Highlight reels
+
+@router.get('/highlight-reels', response=list[HighlightReelOut])
+def get_highlight_reels(request: HttpRequest):
+    highlight_reels = HighlightReel.objects.all()
+    highlight_reels_users = list(set([reel.user_email for reel in highlight_reels]))
+    users = User.objects.filter(email__in=highlight_reels_users)
+    users_dict = {user.email: f'{user.first_name} {user.last_name}' for user in users}
+    highlight_reels_out = []
+    for reel in highlight_reels:
+        highlight_reels_out.append(HighlightReelListOut(id=reel.id, name=reel.name, description=reel.description, date=reel.date, created_by=users_dict[reel.user_email]))
+    return highlight_reels_out
+
+@router.post('/highlight-reels', response={200: ObjectId})
+def create_highlight_reel(request: HttpRequest, data: HighlightReelIn):
+    # TODO: Add current date to reel automatically?
+    highlight_reel = HighlightReel.objects.create(name=data.name, description=data.description, user_email=request.user.email, game_events=data.game_events)
+    return {"id": highlight_reel.id}
+
+@router.patch('/highlight-reels/{highlight_reel_id}', response={204: None})
+def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: PatchDict[HighlightReelIn]):
+    highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
+    for attr, value in data.items():
+        setattr(highlight_reel, attr, value)
+    highlight_reel.save()
+    return 204, None
+
+@router.delete('/highlight-reels/{highlight_reel_id}', response={204: None})
+def delete_highlight_reel(request: HttpRequest, highlight_reel_id: int):
+    highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
+    highlight_reel.delete()
+    return 204, None
+
+@router.get('/highlight-reels/{highlight_reel_id}/events', response=list[GameEventOut])
+def get_highlight_reel_events(request: HttpRequest, highlight_reel_id: int):
+    highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
+    return highlight_reel.game_events.exclude(is_deprecated=True).order_by('period', '-time').all()
 
 # endregion
 

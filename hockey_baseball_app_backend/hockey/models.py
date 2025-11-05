@@ -369,7 +369,7 @@ class Game(models.Model):
 
     # Dashboard fields.
 
-    game_type_group = models.CharField(max_length=10)
+    # game_type_group = models.CharField(max_length=10)
 
     game_period = models.ForeignKey(GamePeriod, on_delete=models.RESTRICT, null=True, blank=True)
 
@@ -444,18 +444,6 @@ class GameGoalie(models.Model):
     class Meta:
         db_table = "game_goalies"
 
-class HighlightReel(models.Model):
-    name = models.CharField(max_length=150)
-    description = models.TextField()
-    date = models.DateField()
-    created_by = models.IntegerField()
-
-    def __str__(self):
-        return f"{self.date} - {self.name}"
-
-    class Meta:
-        db_table = "highlight_reels"
-
 class GameEventName(models.Model):
 
     name = models.CharField(max_length=50)
@@ -515,6 +503,22 @@ class GameEvents(models.Model):
 
     class Meta:
         db_table = "game_events"
+
+class HighlightReel(models.Model):
+    name = models.CharField(max_length=150)
+    description = models.TextField()
+    date = models.DateField(auto_now_add=True)
+
+    user_email = models.CharField(max_length=255)
+    """User who has created the highlight reel. Not a foreign key because the users database is separate."""
+
+    game_events = models.ManyToManyField(GameEvents, related_name='highlight_reels')
+
+    def __str__(self):
+        return f"{self.date} - {self.name}"
+
+    class Meta:
+        db_table = "highlight_reels"
 
 class GameEventsAnalysisQueue(models.Model):
 
