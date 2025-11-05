@@ -356,6 +356,7 @@ class GameTypeName(models.Model):
 class GamePeriod(models.Model):
 
     name = models.CharField(max_length=10)
+    order = models.IntegerField(default=0)
 
     def __str__(self):
         return self.name

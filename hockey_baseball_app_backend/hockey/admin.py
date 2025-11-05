@@ -28,6 +28,12 @@ class GameTypeNameAdmin(admin.ModelAdmin):
     ordering = ['game_type__name', 'name']
     search_fields = ['game_type__name', 'name', 'is_actual']
 
+@admin.register(GamePeriod)
+class GamePeriodAdmin(admin.ModelAdmin):
+    list_display = ['order', 'name']
+    ordering = ['order', 'name']
+    search_fields = ['order', 'name']
+
 @admin.register(Game)
 class GameAdmin(admin.ModelAdmin):
     list_display = ['date', 'home_team__name', 'away_team__name']
@@ -92,5 +98,5 @@ app = apps.get_app_config('hockey')
 
 for _, model in app.models.items():
 
-    if model in [Division, GameEventName, GamePeriod, GameType, PlayerPosition, ShotType, TeamLevel]:
+    if model in [Division, GameEventName, GameType, PlayerPosition, ShotType, TeamLevel]:
         admin.site.register(model, HasNameAdmin)

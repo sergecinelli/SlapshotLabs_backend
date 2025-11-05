@@ -17,7 +17,7 @@ import faker.providers
 from faker_animals import AnimalsProvider
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
-                      GameIn, GameLiveDataOut, GameOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
+                      GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
                       GoalieSeasonsGet, HighlightReelIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut)
@@ -308,9 +308,9 @@ def get_game_types(request: HttpRequest):
         game_types_out.append(game_type_out)
     return game_types_out
 
-@router.get('/game-period/list', response=list[ObjectIdName])
+@router.get('/game-period/list', response=list[GamePeriodOut])
 def get_game_periods(request: HttpRequest):
-    game_periods = GamePeriod.objects.all()
+    game_periods = GamePeriod.objects.order_by('order')
     return game_periods
 
 @router.get('/game/list', response=list[GameOut])

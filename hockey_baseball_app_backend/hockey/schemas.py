@@ -274,6 +274,11 @@ class GameTypeOut(Schema):
     name: str
     game_type_names: list[ObjectIdName] | None = Field(None, description="List of game type names for the game type.")
 
+class GamePeriodOut(Schema):
+    id: int
+    name: str
+    order: int
+
 class GameIn(Schema):
     home_team_id: int
     home_start_goalie_id: int | None = Field(None, alias="home_team_goalie_id", description="ID of the goalie that started the game for the home team.")
