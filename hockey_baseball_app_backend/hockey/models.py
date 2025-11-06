@@ -110,7 +110,7 @@ class Player(models.Model):
     weight = models.IntegerField("Weight, lbs")
     shoots = models.CharField(max_length=1, choices=[('L', 'Left Shot'), ('R', 'Right Shot')])
 
-    team = models.ForeignKey(Team, null=True, on_delete=models.SET_NULL)
+    team = models.ForeignKey(Team, null=True, blank=True, on_delete=models.SET_NULL)
     position = models.ForeignKey(PlayerPosition, on_delete=models.RESTRICT)
     number = models.IntegerField()
     photo = models.ImageField(upload_to='player_photo/', null=True, blank=True)
