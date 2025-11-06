@@ -303,7 +303,7 @@ class GameOut(Schema):
     home_team_id: int
     away_team_id: int
     game_type_id: int
-    game_type_name: str | None = None
+    game_type_name: str | None = Field(None, alias="game_type_name.name")
     status: int = Field(..., description=get_constant_class_int_description(GameStatus))
     date: datetime.date
     time: datetime.time
@@ -320,6 +320,7 @@ class GameTypeRecordOut(Schema):
     ties: int
 
 class GameExtendedOut(GameOut):
+    game_type_name: str | None = None
     arena_id: int
     home_team_game_type_record: GameTypeRecordOut | None = None
     away_team_game_type_record: GameTypeRecordOut | None = None

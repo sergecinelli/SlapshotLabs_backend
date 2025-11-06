@@ -16,6 +16,8 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
+from hockey.utils.constants import GameStatus, get_constant_class_int_choices
+
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
                       GoalieSeasonsGet, HighlightReelIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
@@ -374,6 +376,10 @@ def add_game(request: HttpRequest, data: GameIn):
         game_season = get_current_season(data.date)
         if game_season is None:
             return 503, {"message": "No current season found."}
+        if data.status not in [status[0] for status in get_constant_class_int_choices(GameStatus)]:
+            return 400, {"message": f"Invalid status: {data.status}"}
+        if data.game_type_id in [game_type.id for game_type in GameType.objects.filter(gametypename__is_actual=True)] and data.game_type_name_id is None:
+            return 400, {"message": "If game type has names, game type name must be provided."}
         with transaction.atomic(using='hockey'):
             home_defensive_zone_exit = DefensiveZoneExit.objects.create()
             home_offensive_zone_entry = OffensiveZoneEntry.objects.create()
@@ -409,10 +415,14 @@ def add_game(request: HttpRequest, data: GameIn):
     game = Game.objects.get(id=game.id)
     return game
 
-@router.patch("/game/{game_id}", response={204: None})
+@router.patch("/game/{game_id}", response={204: None, 400: Message})
 def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
     game = get_object_or_404(Game, id=game_id)
     data_status = data.get('status')
+    if data_status is not None and data_status not in [status[0] for status in get_constant_class_int_choices(GameStatus)]:
+        return 400, {"message": f"Invalid status: {data_status}"}
+    if data.get('game_type_id') in [game_type.id for game_type in GameType.objects.filter(gametypename__is_actual=True)] and data.get('game_type_name_id') is None:
+        return 400, {"message": "If game type has names, game type name must be provided."}
     with transaction.atomic(using='hockey'):
         if data_status is not None and game.status != data_status and data_status == 3:
             # Game has finished, add its data to statistics.
