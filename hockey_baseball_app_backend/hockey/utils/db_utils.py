@@ -20,10 +20,10 @@ def get_no_goalie() -> Goalie:
 
 def get_game_current_goalies(game: Game) -> tuple[int, int]:
     goalie_change_event_name = GameEventName.objects.get(name="Goalie Change")
-    home_goalie = GameEvents.objects.filter(game=game, event_name=goalie_change_event_name, team=game.home_team).order_by('-period_id', 'start_time').first()
+    home_goalie = GameEvents.objects.filter(game=game, event_name=goalie_change_event_name, team=game.home_team).order_by('-period_id', 'time').first()
     if home_goalie is None:
         home_goalie = game.home_start_goalie
-    away_goalie = GameEvents.objects.filter(game=game, event_name=goalie_change_event_name, team=game.away_team).order_by('-period_id', 'start_time').first()
+    away_goalie = GameEvents.objects.filter(game=game, event_name=goalie_change_event_name, team=game.away_team).order_by('-period_id', 'time').first()
     if away_goalie is None:
         away_goalie = game.away_start_goalie
     return (home_goalie.player_id, away_goalie.player_id)
