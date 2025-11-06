@@ -16,7 +16,7 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
-from hockey.utils.constants import GOALIE_POSITION_NAME, GameStatus, get_constant_class_int_choices
+from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_NAME, GameStatus, get_constant_class_int_choices
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
@@ -76,9 +76,11 @@ def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] =
         return resp.entry_already_exists("Goalie", str(e))
     return {"id": goalie.id}
 
-@router.patch("/goalie/{goalie_id}", response={204: None})
+@router.patch("/goalie/{goalie_id}", response={204: None, 403: Message})
 def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn], photo: File[UploadedFile] = None):
     goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
+    if goalie.first_name == NO_GOALIE_NAME:
+        return 403, {"message": "This goalie is used in case of no goalie in net, so it cannot be updated."}
     for attr, value in data.items():
         setattr(goalie, attr, value)
     if photo is not None:
@@ -89,9 +91,11 @@ def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn
         return resp.entry_already_exists("Goalie")
     return 204, None
 
-@router.delete("/goalie/{goalie_id}", response={204: None})
+@router.delete("/goalie/{goalie_id}", response={204: None, 403: Message})
 def delete_goalie(request: HttpRequest, goalie_id: int):
-    goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
+    goalie = get_object_or_404(Goalie, id=goalie_id)
+    if goalie.player.first_name == NO_GOALIE_NAME:
+        return 403, {"message": "This goalie is used in case of no goalie in net, so it cannot be deleted."}
     goalie.delete()
     return 204, None
 
