@@ -301,7 +301,11 @@ class GameIn(Schema):
 class GameOut(Schema):
     id: int
     home_team_id: int
+    home_start_goalie_id: int | None
+    home_goals: int
     away_team_id: int
+    away_start_goalie_id: int | None
+    away_goals: int
     game_type_id: int
     game_type_name: str | None = Field(None, alias="game_type_name.name")
     status: int = Field(..., description=get_constant_class_int_description(GameStatus))

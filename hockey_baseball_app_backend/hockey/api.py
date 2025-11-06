@@ -364,7 +364,9 @@ def get_game_extra(request: HttpRequest, game_id: int):
                 away_team_record.losses += 1
             else:
                 away_team_record.ties += 1
-    return GameExtendedOut(id=game.id, home_team_id=game.home_team_id, away_team_id=game.away_team_id,
+    return GameExtendedOut(id=game.id, home_team_id=game.home_team_id, home_start_goalie_id=game.home_start_goalie_id,
+                           home_goals=game.home_goals, away_team_id=game.away_team_id, away_start_goalie_id=game.away_start_goalie_id,
+                           away_goals=game.away_goals,
                            game_type_id=game.game_type_id, game_period_id=game.game_period_id,
                            game_type_name=(game.game_type_name.name if game.game_type_name is not None else None), status=game.status,
                            date=game.date, time=game.time, season_id=game.season_id, rink_id=game.rink_id, arena_id=game.rink.arena_id,
