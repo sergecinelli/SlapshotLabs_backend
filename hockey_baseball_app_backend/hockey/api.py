@@ -16,7 +16,7 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
-from hockey.utils.constants import GameStatus, get_constant_class_int_choices
+from hockey.utils.constants import GOALIE_POSITION_NAME, GameStatus, get_constant_class_int_choices
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
@@ -39,7 +39,7 @@ User = get_user_model()
 
 @router.get('/player-position/list', response=list[PlayerPositionOut])
 def get_player_positions(request: HttpRequest):
-    positions = PlayerPosition.objects.exclude(name="Goalie").all()
+    positions = PlayerPosition.objects.exclude(name=GOALIE_POSITION_NAME).all()
     return positions
 
 @router.get('/goalie/list', response=list[GoalieOut])
@@ -61,14 +61,14 @@ def get_goalie(request: HttpRequest, goalie_id: int):
 
 @router.get('/goalie/{goalie_id}/photo', response=bytes)
 def get_goalie_photo(request: HttpRequest, goalie_id: int):
-    goalie = get_object_or_404(Player, id=goalie_id, position__name="Goalie")
+    goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
     return FileResponse(goalie.photo.open())
 
 @router.post('/goalie', response={200: ObjectId, 400: Message, 503: Message})
 def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] = None):
     try:
         with transaction.atomic(using='hockey'):
-            goalie = Player(position=PlayerPosition.objects.get(name="Goalie"), **data.dict())
+            goalie = Player(position=PlayerPosition.objects.get(name=GOALIE_POSITION_NAME), **data.dict())
             goalie.photo = photo
             goalie.save()
             Goalie.objects.create(player=goalie)
@@ -78,7 +78,7 @@ def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] =
 
 @router.patch("/goalie/{goalie_id}", response={204: None})
 def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn], photo: File[UploadedFile] = None):
-    goalie = get_object_or_404(Player, id=goalie_id, position__name="Goalie")
+    goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
     for attr, value in data.items():
         setattr(goalie, attr, value)
     if photo is not None:
@@ -91,7 +91,7 @@ def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn
 
 @router.delete("/goalie/{goalie_id}", response={204: None})
 def delete_goalie(request: HttpRequest, goalie_id: int):
-    goalie = get_object_or_404(Player, id=goalie_id, position__name="Goalie")
+    goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
     goalie.delete()
     return 204, None
 
@@ -103,7 +103,7 @@ def get_goalie_seasons(request: HttpRequest, data: GoalieSeasonsGet):
 def get_players(request: HttpRequest, team_id: int | None = None):
     current_season = get_current_season()
     players_out: list[PlayerOut] = []
-    players = Player.objects.exclude(position__name="Goalie")
+    players = Player.objects.exclude(position__name=GOALIE_POSITION_NAME)
     if team_id is not None:
         players = players.filter(team_id=team_id)
     for player in players:
@@ -112,19 +112,19 @@ def get_players(request: HttpRequest, team_id: int | None = None):
 
 @router.get('/player/{player_id}', response=PlayerOut)
 def get_player(request: HttpRequest, player_id: int):
-    player = get_object_or_404(Player.objects.exclude(position__name="Goalie"), id=player_id)
+    player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
     current_season = get_current_season()
     return form_player_out(player, current_season)
 
 @router.get('/player/{player_id}/photo', response=bytes)
 def get_player_photo(request: HttpRequest, player_id: int):
-    player = get_object_or_404(Player.objects.exclude(position__name="Goalie"), id=player_id)
+    player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
     return FileResponse(player.photo.open())
 
 @router.post('/player', response={200: ObjectId, 400: Message})
 def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] = None):
     try:
-        if data.position_id == PlayerPosition.objects.get(name="Goalie").id:
+        if data.position_id == PlayerPosition.objects.get(name=GOALIE_POSITION_NAME).id:
             return 400, {"message": "Goalies are not added through this endpoint."}
         player = Player(**data.dict())
         player.photo = photo
@@ -135,7 +135,7 @@ def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] =
 
 @router.patch("/player/{player_id}", response={204: None})
 def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn], photo: File[UploadedFile] = None):
-    player = get_object_or_404(Player.objects.exclude(position__name="Goalie"), id=player_id)
+    player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
     for attr, value in data.items():
         setattr(player, attr, value)
     if photo is not None:
@@ -148,7 +148,7 @@ def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn
 
 @router.delete("/player/{player_id}", response={204: None})
 def delete_player(request: HttpRequest, player_id: int):
-    player = get_object_or_404(Player.objects.exclude(position__name="Goalie"), id=player_id)
+    player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
     player.delete()
     return 204, None
 

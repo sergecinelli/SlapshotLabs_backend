@@ -4,6 +4,7 @@ from django.db import IntegrityError
 
 from hockey.models import Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Player, PlayerSeason, Season, ShotType, Team
 from hockey.schemas import GameEventIn, GameGoalieOut, GamePlayerOut, GoalieOut, PlayerOut
+from hockey.utils.constants import NO_GOALIE_NAME
 
 
 def get_current_season(date: datetime.date | None = None) -> Season | None:
@@ -15,7 +16,7 @@ def get_current_season(date: datetime.date | None = None) -> Season | None:
 
 def get_no_goalie() -> Goalie:
     """Gets the default goalie to be used if no goalie in net."""
-    no_goalie, _ = Goalie.objects.get_or_create(player__first_name="No Goalie")
+    no_goalie, _ = Goalie.objects.get_or_create(player__first_name=NO_GOALIE_NAME)
     return no_goalie
 
 def get_game_current_goalies(game: Game) -> tuple[int, int]:

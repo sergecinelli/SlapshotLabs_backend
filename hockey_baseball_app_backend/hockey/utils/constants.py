@@ -2,6 +2,13 @@ import inspect
 from typing import Any, Final, Type
 
 
+# region Constant values
+
+GOALIE_POSITION_NAME: Final[str] = "Goalie"
+NO_GOALIE_NAME: Final[str] = "NO GOALIE"
+
+# endregion
+
 class IdName:
     def __init__(self, id: int, name: str):
         self.id = id
