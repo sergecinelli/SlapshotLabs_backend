@@ -297,7 +297,6 @@ class GameIn(Schema):
     away_players: list[int]
 
     game_period_id: int | None = None
-    game_type_group: str
 
 class GameOut(Schema):
     id: int
@@ -309,7 +308,7 @@ class GameOut(Schema):
     date: datetime.date
     time: datetime.time
     season_id: int | None = None
-    arena_id: int
+    arena_id: int = Field(..., alias="rink.arena_id")
     rink_id: int
 
     game_period_id: int | None = None
@@ -321,8 +320,9 @@ class GameTypeRecordOut(Schema):
     ties: int
 
 class GameExtendedOut(GameOut):
-    home_team_game_type_record: GameTypeRecordOut
-    away_team_game_type_record: GameTypeRecordOut
+    arena_id: int
+    home_team_game_type_record: GameTypeRecordOut | None = None
+    away_team_game_type_record: GameTypeRecordOut | None = None
 
 class GameDashboardOut(Schema):
     upcoming_games: list[GameOut]

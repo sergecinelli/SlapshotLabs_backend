@@ -49,6 +49,7 @@ def form_goalie_out(goalie: Goalie, season: Season) -> GoalieOut:
         weight=goalie.player.weight,
         shoots=goalie.player.shoots,
         number=goalie.player.number,
+        team_id=goalie.player.team_id,
         shots_on_goal = goalie_season.shots_on_goal,
         saves = goalie_season.saves,
         goals_against = goalie_season.goals_against,

@@ -46,20 +46,20 @@ def get_goalies(request: HttpRequest, team_id: int | None = None):
     goalies_out: list[GoalieOut] = []
     goalies = Goalie.objects.all()
     if team_id is not None:
-        goalies = goalies.filter(team_id=team_id)
+        goalies = goalies.filter(player__team_id=team_id)
     for goalie in goalies:
         goalies_out.append(form_goalie_out(goalie, current_season))
     return goalies_out
 
 @router.get('/goalie/{goalie_id}', response=GoalieOut)
 def get_goalie(request: HttpRequest, goalie_id: int):
-    goalie = get_object_or_404(Goalie, id=goalie_id)
+    goalie = get_object_or_404(Goalie, pk=goalie_id)
     current_season = get_current_season()
     return form_goalie_out(goalie, current_season)
 
 @router.get('/goalie/{goalie_id}/photo', response=bytes)
 def get_goalie_photo(request: HttpRequest, goalie_id: int):
-    goalie = get_object_or_404(Player, id=goalie_id)
+    goalie = get_object_or_404(Player, id=goalie_id, position__name="Goalie")
     return FileResponse(goalie.photo.open())
 
 @router.post('/goalie', response={200: ObjectId, 400: Message, 503: Message})
@@ -76,7 +76,7 @@ def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] =
 
 @router.patch("/goalie/{goalie_id}", response={204: None})
 def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn], photo: File[UploadedFile] = None):
-    goalie = get_object_or_404(Player, id=goalie_id)
+    goalie = get_object_or_404(Player, id=goalie_id, position__name="Goalie")
     for attr, value in data.items():
         setattr(goalie, attr, value)
     if photo is not None:
@@ -89,7 +89,7 @@ def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn
 
 @router.delete("/goalie/{goalie_id}", response={204: None})
 def delete_goalie(request: HttpRequest, goalie_id: int):
-    goalie = get_object_or_404(Player, id=goalie_id)
+    goalie = get_object_or_404(Player, id=goalie_id, position__name="Goalie")
     goalie.delete()
     return 204, None
 
@@ -101,7 +101,7 @@ def get_goalie_seasons(request: HttpRequest, data: GoalieSeasonsGet):
 def get_players(request: HttpRequest, team_id: int | None = None):
     current_season = get_current_season()
     players_out: list[PlayerOut] = []
-    players = Player.objects.all()
+    players = Player.objects.exclude(position__name="Goalie")
     if team_id is not None:
         players = players.filter(team_id=team_id)
     for player in players:
@@ -110,18 +110,20 @@ def get_players(request: HttpRequest, team_id: int | None = None):
 
 @router.get('/player/{player_id}', response=PlayerOut)
 def get_player(request: HttpRequest, player_id: int):
-    player = get_object_or_404(Player, id=player_id)
+    player = get_object_or_404(Player.objects.exclude(position__name="Goalie"), id=player_id)
     current_season = get_current_season()
     return form_player_out(player, current_season)
 
 @router.get('/player/{player_id}/photo', response=bytes)
 def get_player_photo(request: HttpRequest, player_id: int):
-    player = get_object_or_404(Player, id=player_id)
+    player = get_object_or_404(Player.objects.exclude(position__name="Goalie"), id=player_id)
     return FileResponse(player.photo.open())
 
 @router.post('/player', response={200: ObjectId, 400: Message})
 def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] = None):
     try:
+        if data.position_id == PlayerPosition.objects.get(name="Goalie").id:
+            return 400, {"message": "Goalies are not added through this endpoint."}
         player = Player(**data.dict())
         player.photo = photo
         player.save()
@@ -131,7 +133,7 @@ def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] =
 
 @router.patch("/player/{player_id}", response={204: None})
 def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn], photo: File[UploadedFile] = None):
-    player = get_object_or_404(Player, id=player_id)
+    player = get_object_or_404(Player.objects.exclude(position__name="Goalie"), id=player_id)
     for attr, value in data.items():
         setattr(player, attr, value)
     if photo is not None:
@@ -144,7 +146,7 @@ def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn
 
 @router.delete("/player/{player_id}", response={204: None})
 def delete_player(request: HttpRequest, player_id: int):
-    player = get_object_or_404(Player, id=player_id)
+    player = get_object_or_404(Player.objects.exclude(position__name="Goalie"), id=player_id)
     player.delete()
     return 204, None
 
@@ -333,10 +335,7 @@ def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | Non
 @router.get('/game/{game_id}', response=GameOut)
 def get_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
-    return GameOut(id=game.id, home_team_id=game.home_team_id, away_team_id=game.away_team_id,
-                   game_type_id=game.game_type_id, game_type_name=game.game_type_name.name, status=game.status,
-                   date=game.date, time=game.time, season_id=game.season_id, arena_id=game.rink.arena_id, rink_id=game.rink_id,
-                   game_period_id=game.game_period_id)
+    return game
 
 @router.get('/game/{game_id}/extra', response=GameExtendedOut)
 def get_game_extra(request: HttpRequest, game_id: int):
@@ -364,8 +363,9 @@ def get_game_extra(request: HttpRequest, game_id: int):
             else:
                 away_team_record.ties += 1
     return GameExtendedOut(id=game.id, home_team_id=game.home_team_id, away_team_id=game.away_team_id,
-                           game_type_id=game.game_type_id, game_type_name=game.game_type_name.name, status=game.status,
-                           date=game.date, time=game.time, season_id=game.season_id, arena_id=game.rink.arena_id, rink_id=game.rink_id,
+                           game_type_id=game.game_type_id, game_period_id=game.game_period_id,
+                           game_type_name=(game.game_type_name.name if game.game_type_name is not None else None), status=game.status,
+                           date=game.date, time=game.time, season_id=game.season_id, rink_id=game.rink_id, arena_id=game.rink.arena_id,
                            home_team_game_type_record=home_team_record, away_team_game_type_record=away_team_record)
 
 @router.post('/game', response={200: GameOut, 400: Message, 503: Message})
