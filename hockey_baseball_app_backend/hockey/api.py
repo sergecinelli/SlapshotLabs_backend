@@ -20,11 +20,11 @@ from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_NAME, EventNa
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
-                      GoalieSeasonsGet, HighlightReelIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
+                      GoalieSeasonsGet, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut)
-from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
-                     GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, HighlightReel, OffensiveZoneEntry, Player,
+from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
+                     GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, Highlight, HighlightReel, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers)
 from .utils import api_response_templates as resp
 from .utils.db_utils import (form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
@@ -771,10 +771,41 @@ def delete_highlight_reel(request: HttpRequest, highlight_reel_id: int):
     highlight_reel.delete()
     return 204, None
 
-@router.get('/highlight-reels/{highlight_reel_id}/events', response=list[GameEventOut])
-def get_highlight_reel_events(request: HttpRequest, highlight_reel_id: int):
+@router.get('/highlight-reels/{highlight_reel_id}/highlights', response=list[HighlightOut])
+def get_highlight_reel_highlights(request: HttpRequest, highlight_reel_id: int):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
-    return highlight_reel.game_events.exclude(is_deprecated=True).order_by('period', '-time').all()
+    return highlight_reel.highlights.all()
+
+@router.post('/highlight-reels/{highlight_reel_id}/highlights', response={200: ObjectId, 400: Message})
+def add_highlight(request: HttpRequest, highlight_reel_id: int, data: HighlightIn):
+    highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
+    try:
+        with transaction.atomic(using='hockey'):
+            if data.game_event_id is None:
+                game_event_id = None
+                custom_event = CustomEvents.objects.create(event_name=data.event_name, note=data.note, youtube_link=data.youtube_link,
+                                                        date=data.date, time=data.time, user_email=request.user.email)
+            else:
+                game_event_id = data.game_event_id
+                custom_event = None
+            highlight = Highlight.objects.create(game_event_id=game_event_id, custom_event=custom_event, highlight_reel_id=highlight_reel.id, order=data.order)
+    except ValueError as e:
+        return 400, {"message": str(e)}
+    return {"id": highlight.id}
+
+@router.delete('/highlights/{highlight_id}', response={204: None, 400: Message})
+def delete_highlight(request: HttpRequest, highlight_id: int):
+    highlight = get_object_or_404(Highlight, id=highlight_id)
+    try:
+        with transaction.atomic(using='hockey'):
+            if highlight.custom_event is not None:
+                # Remove the custom event if it is not associated with any other highlights.
+                if highlight.custom_event.highlights.count() == 1:
+                    highlight.custom_event.delete()
+            highlight.delete()
+    except ValueError as e:
+        return 400, {"message": str(e)}
+    return 204, None
 
 # endregion
 

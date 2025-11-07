@@ -531,6 +531,22 @@ class GameEvents(models.Model):
     class Meta:
         db_table = "game_events"
 
+class CustomEvents(models.Model):
+    event_name = models.CharField(max_length=150)
+    note = models.TextField()
+    youtube_link = models.CharField("YouTube Link", max_length=1000, null=True, blank=True)
+    date = models.DateField(null=True, blank=True)
+    time = models.TimeField(null=True, blank=True)
+
+    user_email = models.CharField(max_length=255)
+    """User who has created the user events. Not a foreign key because the users database is separate."""
+    
+    def __str__(self):
+        return f"{self.date} - {self.time} - {self.event_name}"
+    
+    class Meta:
+        db_table = "custom_events"
+
 class HighlightReel(models.Model):
     name = models.CharField(max_length=150)
     description = models.TextField()
@@ -539,13 +555,32 @@ class HighlightReel(models.Model):
     user_email = models.CharField(max_length=255)
     """User who has created the highlight reel. Not a foreign key because the users database is separate."""
 
-    game_events = models.ManyToManyField(GameEvents, related_name='highlight_reels')
-
     def __str__(self):
         return f"{self.date} - {self.name}"
 
     class Meta:
         db_table = "highlight_reels"
+
+class Highlight(models.Model):
+    game_event = models.ForeignKey(GameEvents, on_delete=models.RESTRICT, null=True, blank=True)
+    custom_event = models.ForeignKey(CustomEvents, on_delete=models.RESTRICT, related_name='highlights', null=True, blank=True)
+    highlight_reel = models.ForeignKey(HighlightReel, related_name='highlights', on_delete=models.CASCADE, null=True, blank=True)
+    order = models.IntegerField(default=0)
+
+    user_email = models.CharField(max_length=255)
+    """User who has created the highlight. Not a foreign key because the users database is separate."""
+
+    def clean(self):
+        if self.game_event is None and self.custom_event is None:
+            raise ValidationError("Either game event or custom event must be set.")
+        if self.game_event is not None and self.custom_event is not None:
+            raise ValidationError("Only one of game event or custom event can be set.")
+
+    def __str__(self):
+        return f"{self.pk} - {self.highlight_reel.name if self.highlight_reel is not None else '(No reel)'} - {self.order}"
+
+    class Meta:
+        db_table = "highlights"
 
 class GameEventsAnalysisQueue(models.Model):
 

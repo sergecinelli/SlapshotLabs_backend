@@ -2,6 +2,7 @@ import datetime
 from typing import Optional
 from ninja import Field, Schema
 
+from hockey.models import Highlight
 from hockey.utils.constants import GameStatus, GoalType, RinkZone, get_constant_class_int_description, get_constant_class_str_description
 
 # region Common
@@ -427,6 +428,78 @@ class GameLiveDataOut(Schema):
 
 # region Highlight Reels
 
+class CustomEventIn(Schema):
+    event_name: str
+    note: str
+    youtube_link: str | None = None
+    date: datetime.date | None = None
+    time: datetime.time | None = None
+
+class CustomEventOut(CustomEventIn):
+    id: int
+
+class HighlightIn(Schema):
+    game_event_id: int | None = None
+    event_name: str
+    note: str
+    youtube_link: str | None = None
+    date: datetime.date | None = None
+    time: datetime.time | None = None
+    order: int | None = None
+
+class HighlightOut(HighlightIn):
+    id: int
+    event_name: str
+    note: str
+    youtube_link: str | None = None
+    date: datetime.date | None = None
+    time: str | None = None
+    is_custom: bool = Field(..., description="Whether the highlight is a custom event.")
+
+    @staticmethod
+    def resolve_event_name(obj: Highlight) -> str:
+        if obj.game_event is not None:
+            return obj.game_event.event_name.name
+        if obj.custom_event is not None:
+            return obj.custom_event.event_name
+        return "(no associated event)"
+
+    @staticmethod
+    def resolve_note(obj: Highlight) -> str:
+        if obj.game_event is not None:
+            return obj.game_event.note
+        if obj.custom_event is not None:
+            return obj.custom_event.note
+        return ""
+    
+    @staticmethod
+    def resolve_youtube_link(obj: Highlight) -> str | None:
+        if obj.game_event is not None:
+            return obj.game_event.youtube_link
+        if obj.custom_event is not None:
+            return obj.custom_event.youtube_link
+        return None
+
+    @staticmethod
+    def resolve_date(obj: Highlight) -> datetime.date | None:
+        if obj.game_event is not None:
+            return obj.game_event.game.date
+        if obj.custom_event is not None:
+            return obj.custom_event.date
+        return None
+    
+    @staticmethod
+    def resolve_time(obj: Highlight) -> str | None:
+        if obj.game_event is not None:
+            return f"{obj.game_event.period.name} / {obj.game_event.time.strftime('%M:%S')}"
+        if obj.custom_event is not None:
+            return obj.custom_event.time
+        return None
+
+    @staticmethod
+    def resolve_is_custom(obj: Highlight) -> bool:
+        return (obj.custom_event is not None)
+
 class HighlightReelIn(Schema):
     name: str
     description: str
@@ -440,6 +513,6 @@ class HighlightReelListOut(Schema):
     date: datetime.date
 
 class HighlightReelOut(HighlightReelListOut):
-    game_events: list[GameEventOut]
+    highlights: list[HighlightOut]
 
 # endregion
