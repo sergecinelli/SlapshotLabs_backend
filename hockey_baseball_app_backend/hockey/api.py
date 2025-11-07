@@ -16,7 +16,7 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
-from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_NAME, GameStatus, get_constant_class_int_choices
+from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_NAME, EventName, GameStatus, get_constant_class_int_choices
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
@@ -443,7 +443,7 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
 
         if (data.get('home_team_goalie_id') is not None or data.get('away_team_goalie_id') is not None) and game.status > 1:
             transaction.set_rollback(True, using='hockey')
-            return 400, {"message": "Goalies can only be set here before the game starts. After the game starts, goalies can only be added by the Goalie Change event."}
+            return 400, {"message": f"Goalies can only be set here before the game starts. After the game starts, goalies can only be added by the '{EventName.GOALIE_CHANGE}' event."}
 
         if data.get('home_team_goalie_id') is not None:
             GameGoalie.objects.filter(game=game, goalie__team=game.home_team).delete()
@@ -612,20 +612,25 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
         with transaction.atomic(using='hockey'):
             game_event = GameEvents.objects.create(**data_new)
 
-            if game_event.shot_type is not None and game_event.event_name.name.lower() != "shot on goal":
-                raise ValueError("Shot type is only allowed for 'shot on goal' events.")
+            event_name = GameEventName.objects.filter(id=data.event_name_id).first()
+
+            if event_name is None:
+                raise ValueError(f"event_name_id {data.event_name_id} not found.")
+
+            if game_event.shot_type is not None and event_name.name != EventName.SHOT:
+                raise ValueError(f"Shot type is only allowed for '{EventName.SHOT}' events.")
 
             game: Game = game_event.game
 
-            if game_event.event_name.name.lower() == "shot on goal":
+            if event_name.name == EventName.SHOT:
                 error = update_game_shots_from_event(game, data=data, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
-            elif game_event.event_name.name.lower() == "turnover":
+            elif event_name.name == EventName.TURNOVER:
                 error = update_game_turnovers_from_event(game, data=data, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
-            elif game_event.event_name.name.lower() == "faceoff":
+            elif event_name.name == EventName.FACEOFF:
                 error = update_game_faceoffs_from_event(game, data=data, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
@@ -653,15 +658,15 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
             # game_event.save()
 
             # Undo old shot/turnover data.
-            if game_event.event_name.name.lower() == "shot on goal":
+            if game_event.event_name.name == EventName.SHOT:
                 error = update_game_shots_from_event(game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
-            elif game_event.event_name.name.lower() == "turnover":
+            elif game_event.event_name.name == EventName.TURNOVER:
                 error = update_game_turnovers_from_event(game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
-            elif game_event.event_name.name.lower() == "faceoff":
+            elif game_event.event_name.name == EventName.FACEOFF:
                 error = update_game_faceoffs_from_event(game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
@@ -678,20 +683,20 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
                 setattr(game_event, attr, value)
             if game_event.goalie is None and game_event.player is None and game_event.player_2 is None:
                 raise ValueError("Please specify goalie ID or player IDs.")
-            if game_event.shot_type is not None and game_event.event_name.name.lower() != "shot on goal":
+            if game_event.shot_type is not None and game_event.event_name.name != EventName.SHOT:
                 game_event.shot_type = None
             game_event.save()
 
             # Apply new shot/turnover data.
-            if game_event.event_name.name.lower() == "shot on goal":
+            if game_event.event_name.name == EventName.SHOT:
                 error = update_game_shots_from_event(game, event=game_event, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
-            elif game_event.event_name.name.lower() == "turnover":
+            elif game_event.event_name.name == EventName.TURNOVER:
                 error = update_game_turnovers_from_event(game, event=game_event, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
-            elif game_event.event_name.name.lower() == "faceoff":
+            elif game_event.event_name.name == EventName.FACEOFF:
                 error = update_game_faceoffs_from_event(game, event=game_event, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
@@ -709,15 +714,15 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
     try:
         with transaction.atomic(using='hockey'):
 
-            if game_event.event_name.name.lower() == "shot on goal":
+            if game_event.event_name.name == EventName.SHOT:
                 error = update_game_shots_from_event(game_event.game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
-            elif game_event.event_name.name.lower() == "turnover":
+            elif game_event.event_name.name == EventName.TURNOVER:
                 error = update_game_turnovers_from_event(game_event.game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
-            elif game_event.event_name.name.lower() == "faceoff":
+            elif game_event.event_name.name == EventName.FACEOFF:
                 error = update_game_faceoffs_from_event(game_event.game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)

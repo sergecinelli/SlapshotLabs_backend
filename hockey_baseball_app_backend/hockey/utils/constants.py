@@ -20,6 +20,13 @@ class GameStatus:
     GAME_IN_PROGRESS: Final[IdName] = IdName(2, "Game in Progress")
     GAME_OVER: Final[IdName] = IdName(3, "Game Over")
 
+class EventName:
+    """\"Shot on Goal\", \"Turnover\", \"Faceoff\" or \"Goalie Change\"."""
+    SHOT: Final[str] = "Shot on Goal"
+    TURNOVER: Final[str] = "Turnover"
+    FACEOFF: Final[str] = "Faceoff"
+    GOALIE_CHANGE: Final[str] = "Goalie Change"
+
 class GoalType:
     """\"Short Handed\", \"Normal\" or \"Power Play\"."""
     SHORT_HANDED: Final[str] = "Short Handed"

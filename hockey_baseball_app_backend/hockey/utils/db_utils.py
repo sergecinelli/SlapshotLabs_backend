@@ -4,7 +4,7 @@ from django.db import IntegrityError
 
 from hockey.models import Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Player, PlayerSeason, Season, ShotType, Team
 from hockey.schemas import GameEventIn, GameGoalieOut, GamePlayerOut, GoalieOut, PlayerOut
-from hockey.utils.constants import NO_GOALIE_NAME
+from hockey.utils.constants import NO_GOALIE_NAME, EventName
 
 
 def get_current_season(date: datetime.date | None = None) -> Season | None:
@@ -20,7 +20,7 @@ def get_no_goalie() -> Goalie:
     return no_goalie
 
 def get_game_current_goalies(game: Game) -> tuple[int, int]:
-    goalie_change_event_name = GameEventName.objects.get(name="Goalie Change")
+    goalie_change_event_name = GameEventName.objects.get(name=EventName.GOALIE_CHANGE)
     home_goalie = GameEvents.objects.filter(game=game, event_name=goalie_change_event_name, team=game.home_team).order_by('-period_id', 'time').first()
     if home_goalie is None:
         home_goalie = game.home_start_goalie
