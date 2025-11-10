@@ -606,13 +606,19 @@ def get_game_event(request: HttpRequest, game_event_id: int):
 @router.post('/game-event', response={200: ObjectId, 400: Message})
 def add_game_event(request: HttpRequest, data: GameEventIn):
     try:
-        if data.goalie_id is None and data.player_id is None and data.player_2_id is None:
-            return 400, {"message": "Please specify goalie ID or player IDs."}
-        data_new = data.dict()
         with transaction.atomic(using='hockey'):
-            game_event = GameEvents.objects.create(**data_new)
 
             event_name = GameEventName.objects.filter(id=data.event_name_id).first()
+
+            if event_name.name == EventName.GOALIE_CHANGE and data.goalie_id is None:
+                data.goalie_id = get_no_goalie().pk
+
+            if data.goalie_id is None and data.player_id is None and data.player_2_id is None:
+                raise ValueError("Please specify goalie ID and/or player ID(s).")
+
+            data_new = data.dict()
+
+            game_event = GameEvents.objects.create(**data_new)
 
             if event_name is None:
                 raise ValueError(f"event_name_id {data.event_name_id} not found.")
