@@ -397,7 +397,6 @@ class GameEventIn(Schema):
     zone: str | None = Field(None, description=get_constant_class_str_description(RinkZone))
 
     note: str | None = None
-    is_faceoff_won: bool | None = None
     time_length: datetime.timedelta | None = None
 
     youtube_link: str | None = None

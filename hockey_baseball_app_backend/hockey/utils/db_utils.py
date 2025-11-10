@@ -4,7 +4,7 @@ from django.db import IntegrityError
 
 from hockey.models import Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Player, PlayerSeason, Season, ShotType, Team
 from hockey.schemas import GameEventIn, GameGoalieOut, GamePlayerOut, GoalieOut, PlayerOut
-from hockey.utils.constants import NO_GOALIE_NAME, EventName
+from hockey.utils.constants import NO_GOALIE_NAME, EventName, GoalType
 
 
 def get_current_season(date: datetime.date | None = None) -> Season | None:
@@ -145,8 +145,10 @@ def form_game_player_out(game_player: GamePlayer) -> GamePlayerOut:
 def update_game_shots_from_event(game: Game, data: GameEventIn | None = None, event: GameEvents | None = None, is_deleted: bool = False) -> str | None:
     if data is not None:
         shot_type = ShotType.objects.get(id=data.shot_type_id) if data.shot_type_id is not None else None
+        # goal_type = data.goal_type
     else:
         shot_type = event.shot_type
+        # goal_type = event.goal_type
 
     if shot_type is None:
         return "Shot type ID is required"
@@ -159,6 +161,12 @@ def update_game_shots_from_event(game: Game, data: GameEventIn | None = None, ev
 
     if ((data is not None and data.is_scoring_chance is None) or (event is not None and event.is_scoring_chance is None)):
         return "Is scoring chance field is required for shot events"
+
+    # if shot_type_name != "goal" and goal_type is not None:
+    #     return "Goal type is only allowed for goal events"
+
+    # if shot_type_name == "goal" and goal_type is None:
+    #     goal_type = GoalType.NORMAL
 
     value_to_add = (1 if not is_deleted else -1)
 
@@ -242,21 +250,13 @@ def update_game_turnovers_from_event(game: Game, data: GameEventIn | None = None
     return None
 
 def update_game_faceoffs_from_event(game: Game, data: GameEventIn | None = None, event: GameEvents | None = None, is_deleted: bool = False) -> str | None:
-    if data is not None:
-        is_faceoff_won = data.is_faceoff_won
-    else:
-        is_faceoff_won = event.is_faceoff_won
-
-    if is_faceoff_won is None:
-        return "Is faceoff won field is required"
-
     faceoff_team = Team.objects.get(id=(data.team_id if data is not None else event.team_id))
-    if faceoff_team is None or faceoff_team != game.home_team and faceoff_team != game.away_team:
+    if faceoff_team is None or (faceoff_team != game.home_team and faceoff_team != game.away_team):
         return "Invalid team"
 
     value_to_add = (1 if not is_deleted else -1)
 
-    if ((is_faceoff_won and faceoff_team == game.home_team) or (not is_faceoff_won and faceoff_team == game.away_team)):
+    if faceoff_team == game.home_team:
         game.home_faceoffs_won_count += value_to_add
 
     game.faceoffs_count += value_to_add
