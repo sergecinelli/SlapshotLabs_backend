@@ -423,6 +423,20 @@ class Game(models.Model):
             raise ValidationError("Non-tournament game cannot have a tournament name.")
         return super().clean()
 
+    @property
+    def arena_id(self) -> int | None:
+        """Returns the arena_id from the related rink, or None if rink is not set."""
+        if self.rink is not None:
+            return self.rink.arena_id
+        return None
+
+    @property
+    def game_type_name_str(self) -> str | None:
+        """Returns the name of the related game_type_name, or None if game_type_name is not set."""
+        if self.game_type_name is not None:
+            return self.game_type_name.name
+        return None
+
     def __str__(self):
         return f'"{self.home_team.name}" - "{self.away_team.name}" - {str(self.date)} {str(self.time)}'
 

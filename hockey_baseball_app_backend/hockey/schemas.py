@@ -2,6 +2,7 @@ import datetime
 from typing import Optional
 from ninja import Field, Schema
 
+from hockey.models import Game
 from hockey.utils.constants import GameStatus, GoalType, RinkZone, get_constant_class_int_description, get_constant_class_str_description
 
 # region Common
@@ -307,16 +308,15 @@ class GameOut(Schema):
     away_start_goalie_id: int | None
     away_goals: int
     game_type_id: int
-    game_type_name: str | None = Field(None, alias="game_type_name.name")
+    game_type_name: str | None = Field(None, alias="game_type_name_str")
     status: int = Field(..., description=get_constant_class_int_description(GameStatus))
     date: datetime.date
     time: datetime.time
     season_id: int | None = None
-    arena_id: int = Field(..., alias="rink.arena_id")
-    rink_id: int
+    arena_id: int | None = None
+    rink_id: int | None = None
 
     game_period_id: int | None = None
-    # game_type_group: str
 
 class GameTypeRecordOut(Schema):
     wins: int
@@ -329,9 +329,12 @@ class GameExtendedOut(GameOut):
     home_team_game_type_record: GameTypeRecordOut | None = None
     away_team_game_type_record: GameTypeRecordOut | None = None
 
+class GameDashboardGameOut(GameOut):
+    game_type_name: str | None
+
 class GameDashboardOut(Schema):
-    upcoming_games: list[GameOut]
-    previous_games: list[GameOut]
+    upcoming_games: list[GameDashboardGameOut]
+    previous_games: list[GameDashboardGameOut]
 
 class GameGoalieOut(Schema):
     id: int

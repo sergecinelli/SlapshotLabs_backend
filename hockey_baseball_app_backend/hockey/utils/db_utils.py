@@ -3,7 +3,7 @@ import datetime
 from django.db import IntegrityError
 
 from hockey.models import Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Player, PlayerSeason, Season, ShotType, Team
-from hockey.schemas import GameEventIn, GameGoalieOut, GamePlayerOut, GoalieOut, PlayerOut
+from hockey.schemas import GameDashboardGameOut, GameEventIn, GameGoalieOut, GameOut, GamePlayerOut, GoalieOut, PlayerOut
 from hockey.utils.constants import NO_GOALIE_NAME, EventName, GoalType
 
 
@@ -136,6 +136,26 @@ def form_game_player_out(game_player: GamePlayer) -> GamePlayerOut:
         turnovers=game_player.turnovers,
         faceoffs=game_player.faceoffs,
         points=game_player.points
+    )
+
+def form_game_dashboard_game_out(game: Game) -> GameDashboardGameOut:
+    return GameDashboardGameOut(
+        id=game.id,
+        home_team_id=game.home_team_id,
+        home_start_goalie_id=game.home_start_goalie_id,
+        home_goals=game.home_goals,
+        away_team_id=game.away_team_id,
+        away_start_goalie_id=game.away_start_goalie_id,
+        away_goals=game.away_goals,
+        game_type_id=game.game_type_id,
+        game_type_name=game.game_type_name_str,
+        status=game.status,
+        date=game.date,
+        time=game.time,
+        season_id=game.season_id,
+        arena_id=game.arena_id,
+        rink_id=game.rink_id,
+        game_period_id=game.game_period_id,
     )
 
 # endregion Form outputs

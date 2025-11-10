@@ -27,7 +27,7 @@ from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEv
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, HighlightReel, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers)
 from .utils import api_response_templates as resp
-from .utils.db_utils import (form_game_goalie_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
+from .utils.db_utils import (form_game_goalie_out, form_game_dashboard_game_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
                              get_game_current_goalies, get_no_goalie, update_game_faceoffs_from_event,
                              update_game_shots_from_event, update_game_turnovers_from_event)
 
@@ -322,31 +322,34 @@ def get_game_periods(request: HttpRequest):
 
 @router.get('/game/list', response=list[GameOut])
 def get_games(request: HttpRequest, on_now: bool = False):
-    games = Game.objects.exclude(is_deprecated=True)
+    games = Game.objects.exclude(is_deprecated=True).select_related('rink', 'game_type_name')
     if on_now:
         games = games.filter(status=2)
     return games.order_by('-date').all()
 
 @router.get('/game/list/dashboard', response=GameDashboardOut)
 def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | None = None):
-    upcoming_games = Game.objects.exclude(is_deprecated=True).filter(status=1).order_by('date')
-    previous_games = Game.objects.exclude(is_deprecated=True).filter(status=3).order_by('-date')
+    upcoming_games_qs = Game.objects.exclude(is_deprecated=True).filter(status=1).select_related('rink', 'game_type_name').order_by('date')
+    previous_games_qs = Game.objects.exclude(is_deprecated=True).filter(status=3).select_related('rink', 'game_type_name').order_by('-date')
 
     if team_id is not None:
-        upcoming_games = upcoming_games.filter(Q(home_team_id=team_id) | Q(away_team_id=team_id))
-        previous_games = previous_games.filter(Q(home_team_id=team_id) | Q(away_team_id=team_id))
+        upcoming_games_qs = upcoming_games_qs.filter(Q(home_team_id=team_id) | Q(away_team_id=team_id))
+        previous_games_qs = previous_games_qs.filter(Q(home_team_id=team_id) | Q(away_team_id=team_id))
 
-    return GameDashboardOut(upcoming_games=upcoming_games[:limit], previous_games=previous_games[:limit])
+    upcoming_games = [form_game_dashboard_game_out(game) for game in upcoming_games_qs[:limit]]
+    previous_games = [form_game_dashboard_game_out(game) for game in previous_games_qs[:limit]]
+
+    return GameDashboardOut(upcoming_games=upcoming_games, previous_games=previous_games)
 
 @router.get('/game/{game_id}', response=GameOut)
 def get_game(request: HttpRequest, game_id: int):
-    game = get_object_or_404(Game, id=game_id)
+    game = get_object_or_404(Game.objects.select_related('rink', 'game_type_name'), id=game_id)
     return game
 
 @router.get('/game/{game_id}/extra', response=GameExtendedOut)
 def get_game_extra(request: HttpRequest, game_id: int):
     """Returns a game with extra information for the Live Dashboard."""
-    game = get_object_or_404(Game, id=game_id)
+    game = get_object_or_404(Game.objects.select_related('rink', 'game_type_name'), id=game_id)
     game_type_games = Game.objects.filter(game_type=game.game_type, season=game.season).\
         filter(Q(home_team_id=game.home_team_id) | Q(away_team_id=game.away_team_id)).exclude(id=game_id)
     if game.game_type_name is not None:
@@ -372,8 +375,8 @@ def get_game_extra(request: HttpRequest, game_id: int):
                            home_goals=game.home_goals, away_team_id=game.away_team_id, away_start_goalie_id=game.away_start_goalie_id,
                            away_goals=game.away_goals,
                            game_type_id=game.game_type_id, game_period_id=game.game_period_id,
-                           game_type_name=(game.game_type_name.name if game.game_type_name is not None else None), status=game.status,
-                           date=game.date, time=game.time, season_id=game.season_id, rink_id=game.rink_id, arena_id=game.rink.arena_id,
+                           game_type_name=game.game_type_name_str, status=game.status,
+                           date=game.date, time=game.time, season_id=game.season_id, rink_id=game.rink_id, arena_id=game.arena_id,
                            home_team_game_type_record=home_team_record, away_team_game_type_record=away_team_record)
 
 @router.post('/game', response={200: GameOut, 400: Message, 503: Message})
