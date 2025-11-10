@@ -6,7 +6,7 @@ from django.db import models
 from django.db.models import Case, DateField, ExpressionWrapper, UniqueConstraint, When, Value, F
 from django.db.models.functions import Concat
 
-from hockey.utils.constants import GameStatus, GoalType, IdName, RinkZone, get_constant_class_int_choices, get_constant_class_str_choices
+from hockey.utils.constants import GOALIE_POSITION_NAME, GameStatus, GoalType, IdName, RinkZone, get_constant_class_int_choices, get_constant_class_str_choices
 
 class TeamLevel(models.Model):
 
@@ -201,6 +201,11 @@ class PlayerTransaction(models.Model):
 class Goalie(models.Model):
 
     player = models.OneToOneField(Player, on_delete=models.CASCADE, primary_key=True)
+
+    def clean(self) -> None:
+        if self.player.position.name != GOALIE_POSITION_NAME:
+            raise ValidationError("A goalie must have the \"Goalie\" player position.")
+        return super().clean()
 
     def __str__(self):
         return f"{self.player.first_name} {self.player.last_name}"
@@ -416,6 +421,21 @@ class Game(models.Model):
             raise ValidationError("Tournament game must have a tournament name.")
         if self.game_type.name != "Tournament" and self.game_type_name is not None:
             raise ValidationError("Non-tournament game cannot have a tournament name.")
+        return super().clean()
+
+    @property
+    def arena_id(self) -> int | None:
+        """Returns the arena_id from the related rink, or None if rink is not set."""
+        if self.rink is not None:
+            return self.rink.arena_id
+        return None
+
+    @property
+    def game_type_name_str(self) -> str | None:
+        """Returns the name of the related game_type_name, or None if game_type_name is not set."""
+        if self.game_type_name is not None:
+            return self.game_type_name.name
+        return None
 
     def __str__(self):
         return f'"{self.home_team.name}" - "{self.away_team.name}" - {str(self.date)} {str(self.time)}'
@@ -521,7 +541,6 @@ class GameEvents(models.Model):
 
     note = models.TextField(null=True, blank=True)
     time_length = models.DurationField(null=True, blank=True)
-    is_faceoff_won = models.BooleanField(null=True, blank=True)
 
     is_deprecated = models.BooleanField(default=False)
 
