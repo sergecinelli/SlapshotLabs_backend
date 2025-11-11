@@ -26,7 +26,7 @@ from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZone
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut)
 from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, Highlight, HighlightReel, OffensiveZoneEntry, Player,
-                     PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers)
+                     PlayerPosition, PlayerSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers)
 from .utils import api_response_templates as resp
 from .utils.db_utils import (create_highlight, form_game_goalie_out, form_game_dashboard_game_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
                              get_game_current_goalies, get_no_goalie, update_game_faceoffs_from_event,
@@ -82,12 +82,18 @@ def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn
     goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
     if goalie.first_name == NO_GOALIE_NAME:
         return 403, {"message": "This goalie is used in case of no goalie in net, so it cannot be updated."}
+    old_team_id = goalie.team_id
     for attr, value in data.items():
         setattr(goalie, attr, value)
     if photo is not None:
         goalie.photo = photo
     try:
-        goalie.save()
+        with transaction.atomic(using='hockey'):
+            if old_team_id != goalie.team_id:
+                PlayerTransaction.objects.create(player=goalie, season=get_current_season(), team=goalie.team,
+                    number=goalie.number, description=f"Transferred to \"{(goalie.team.name if goalie.team is not None else 'free agent')}\"",
+                    date=datetime.datetime.now(datetime.timezone.utc).date())
+            goalie.save()
     except IntegrityError:
         return resp.entry_already_exists("Goalie")
     return 204, None
@@ -144,12 +150,18 @@ def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] =
 @router.patch("/player/{player_id}", response={204: None})
 def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn], photo: File[UploadedFile] = None):
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
+    old_team_id = player.team_id
     for attr, value in data.items():
         setattr(player, attr, value)
     if photo is not None:
         player.photo = photo
     try:
-        player.save()
+        with transaction.atomic(using='hockey'):
+            if old_team_id != player.team_id:
+                PlayerTransaction.objects.create(player=player, season=get_current_season(), team=player.team,
+                number=player.number, description=f"Transferred to \"{(player.team.name if player.team is not None else 'free agent')}\"",
+                date=datetime.datetime.now(datetime.timezone.utc).date())
+            player.save()
     except IntegrityError:
         return resp.entry_already_exists("Player")
     return 204, None
