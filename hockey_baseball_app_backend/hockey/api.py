@@ -47,7 +47,7 @@ def get_player_positions(request: HttpRequest):
 def get_goalies(request: HttpRequest, team_id: int | None = None):
     current_season = get_current_season()
     goalies_out: list[GoalieOut] = []
-    goalies = Goalie.objects.all()
+    goalies = Goalie.objects.filter(player__is_archived=False)
     if team_id is not None:
         goalies = goalies.filter(player__team_id=team_id)
     for goalie in goalies:
@@ -98,7 +98,7 @@ def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn
         return resp.entry_already_exists("Goalie")
     return 204, None
 
-@router.delete("/goalie/{goalie_id}", response={204: None, 403: Message})
+@router.delete("/goalie/{goalie_id}", response={200: Message, 403: Message})
 def delete_goalie(request: HttpRequest, goalie_id: int):
     goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
     if goalie.first_name == NO_GOALIE_NAME:
@@ -106,8 +106,10 @@ def delete_goalie(request: HttpRequest, goalie_id: int):
     try:
         goalie.delete()
     except RestrictedError as e:
-        return 403, {"message": "This goalie is used in games, so they cannot be deleted.", "details": str(e)}
-    return 204, None
+        goalie.is_archived = True
+        goalie.save()
+        return 200, {"message": "Archived."}
+    return 200, {"message": "Deleted."}
 
 @router.post("/goalie/seasons", response=list[GoalieSeasonOut])
 def get_goalie_seasons(request: HttpRequest, data: GoalieSeasonsGet):
@@ -117,7 +119,7 @@ def get_goalie_seasons(request: HttpRequest, data: GoalieSeasonsGet):
 def get_players(request: HttpRequest, team_id: int | None = None):
     current_season = get_current_season()
     players_out: list[PlayerOut] = []
-    players = Player.objects.exclude(position__name=GOALIE_POSITION_NAME)
+    players = Player.objects.exclude(position__name=GOALIE_POSITION_NAME).filter(is_archived=False)
     if team_id is not None:
         players = players.filter(team_id=team_id)
     for player in players:
@@ -166,14 +168,16 @@ def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn
         return resp.entry_already_exists("Player")
     return 204, None
 
-@router.delete("/player/{player_id}", response={204: None, 403: Message})
+@router.delete("/player/{player_id}", response={200: Message, 403: Message})
 def delete_player(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
     try:
         player.delete()
     except RestrictedError as e:
-        return 403, {"message": "This player is used in games, so they cannot be deleted.", "details": str(e)}
-    return 204, None
+        player.is_archived = True
+        player.save()
+        return 200, {"message": "Archived."}
+    return 200, {"message": "Deleted."}
 
 @router.post("/player/seasons", response=list[PlayerSeasonOut])
 def get_player_seasons(request: HttpRequest, data: PlayerSeasonsGet):
@@ -597,14 +601,14 @@ def get_player_games(request: HttpRequest, player_id: int, limit: int = 5):
         games.append(form_game_player_out(game_player))
     return games
 
-@router.post('/game-player/list', response={204: None})
-def set_game_players(request: HttpRequest, game_id: int, data: GamePlayersIn):
-    # TODO: asked about necessity of this function. If necessary, write a logic to remove only disappeared players and add new ones.
-    with transaction.atomic(using='hockey'):
-        GamePlayer.objects.filter(game_id=game_id).delete()
-        for player_id in data.player_ids:
-            GamePlayer.objects.create(game_id=game_id, player_id=player_id)
-    return 204, None
+# @router.post('/game-player/list', response={204: None})
+# def set_game_players(request: HttpRequest, game_id: int, data: GamePlayersIn):
+#     # TODO: asked about necessity of this function. If necessary, write a logic to remove only disappeared players and add new ones.
+#     with transaction.atomic(using='hockey'):
+#         GamePlayer.objects.filter(game_id=game_id).delete()
+#         for player_id in data.player_ids:
+#             GamePlayer.objects.create(game_id=game_id, player_id=player_id)
+#     return 204, None
 
 # endregion
 

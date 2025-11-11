@@ -116,6 +116,8 @@ class Player(models.Model):
     photo = models.ImageField(upload_to='player_photo/', null=True, blank=True)
     analysis = models.TextField(null=True, blank=True)
 
+    is_archived = models.BooleanField(default=False)
+
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
 
@@ -188,7 +190,7 @@ class PlayerTransaction(models.Model):
     player = models.ForeignKey(Player, on_delete=models.CASCADE)
     season = models.ForeignKey(Season, on_delete=models.RESTRICT)
     date = models.DateField()
-    team = models.ForeignKey(Team, on_delete=models.CASCADE)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True, blank=True)
     number = models.IntegerField()
     description = models.TextField()
 
