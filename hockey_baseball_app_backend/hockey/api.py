@@ -3,6 +3,7 @@ import os
 import re
 from django.conf import settings
 from django.db.models import Q
+from django.db.models.deletion import RestrictedError
 from django.forms.models import model_to_dict
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
@@ -93,10 +94,13 @@ def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn
 
 @router.delete("/goalie/{goalie_id}", response={204: None, 403: Message})
 def delete_goalie(request: HttpRequest, goalie_id: int):
-    goalie = get_object_or_404(Goalie, id=goalie_id)
-    if goalie.player.first_name == NO_GOALIE_NAME:
-        return 403, {"message": "This goalie is used in case of no goalie in net, so it cannot be deleted."}
-    goalie.delete()
+    goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
+    if goalie.first_name == NO_GOALIE_NAME:
+        return 403, {"message": "This goalie is used in case of no goalie in net, so they cannot be deleted."}
+    try:
+        goalie.delete()
+    except RestrictedError as e:
+        return 403, {"message": "This goalie is used in games, so they cannot be deleted.", "details": str(e)}
     return 204, None
 
 @router.post("/goalie/seasons", response=list[GoalieSeasonOut])
@@ -150,10 +154,13 @@ def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn
         return resp.entry_already_exists("Player")
     return 204, None
 
-@router.delete("/player/{player_id}", response={204: None})
+@router.delete("/player/{player_id}", response={204: None, 403: Message})
 def delete_player(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
-    player.delete()
+    try:
+        player.delete()
+    except RestrictedError as e:
+        return 403, {"message": "This player is used in games, so they cannot be deleted.", "details": str(e)}
     return 204, None
 
 @router.post("/player/seasons", response=list[PlayerSeasonOut])
