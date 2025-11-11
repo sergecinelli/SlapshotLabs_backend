@@ -75,9 +75,9 @@ class GamePlayerAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
 
 @admin.register(Goalie)
 class GoalieAdmin(admin.ModelAdmin):
-    list_display = ['player__last_name', 'player__first_name', 'player__team__name', 'player__number']
+    list_display = ['player__last_name', 'player__first_name', 'player__team__name', 'player__number', 'player__is_archived']
     ordering = ['player__last_name']
-    search_fields = ['player__last_name', 'player__first_name', 'player__team__name', 'player__number']
+    search_fields = ['player__last_name', 'player__first_name', 'player__team__name', 'player__number', 'player__is_archived']
 
     def has_delete_permission(self, request, obj=None):
         if obj and obj.player.first_name == NO_GOALIE_NAME:
@@ -91,9 +91,9 @@ class GoalieAdmin(admin.ModelAdmin):
 
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
-    list_display = ['last_name', 'first_name', 'team__name', 'number']
+    list_display = ['last_name', 'first_name', 'team__name', 'number', 'is_archived']
     ordering = ['last_name']
-    search_fields = ['last_name', 'first_name', 'team__name', 'number']
+    search_fields = ['last_name', 'first_name', 'team__name', 'number', 'is_archived']
 
     def has_delete_permission(self, request, obj=None):
         if obj and obj.first_name == NO_GOALIE_NAME:
@@ -135,9 +135,9 @@ class SeasonAdmin(admin.ModelAdmin):
 
 @admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):
-    list_display = ['name', 'age_group', 'level', 'division']
+    list_display = ['name', 'age_group', 'level', 'division', 'is_archived']
     ordering = ['name']
-    search_fields = ['name', 'age_group', 'level', 'division']
+    search_fields = ['name', 'age_group', 'level', 'division', 'is_archived']
 
 @admin.register(TeamSeason)
 class TeamSeasonAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
