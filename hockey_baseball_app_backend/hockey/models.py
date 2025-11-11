@@ -442,7 +442,7 @@ class Game(models.Model):
         return None
 
     def __str__(self):
-        return f'"{self.home_team.name}" - "{self.away_team.name}" - {str(self.date)} {str(self.time)}'
+        return f'{("(DEPRECATED) " if self.is_deprecated else "")}"{self.home_team.name}" - "{self.away_team.name}" - {str(self.date)} {str(self.time)}'
 
     class Meta:
         db_table = "games"

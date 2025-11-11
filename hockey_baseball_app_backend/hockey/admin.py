@@ -51,9 +51,9 @@ class GamePeriodAdmin(admin.ModelAdmin):
 
 @admin.register(Game)
 class GameAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
-    list_display = ['date', 'home_team__name', 'away_team__name']
+    list_display = ['date', 'home_team__name', 'away_team__name', 'is_deprecated']
     ordering = ['-date']
-    search_fields = ['date', 'home_team__name', 'away_team__name']
+    search_fields = ['date', 'home_team__name', 'away_team__name', 'is_deprecated']
 
 @admin.register(GameEvents)
 class GameEventsAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
