@@ -598,6 +598,7 @@ class Highlight(models.Model):
             raise ValidationError("Either game event or custom event must be set.")
         if self.game_event is not None and self.custom_event is not None:
             raise ValidationError("Only one of game event or custom event can be set.")
+        return super().clean()
 
     def __str__(self):
         return f"{self.pk} - {self.highlight_reel.name if self.highlight_reel is not None else '(No reel)'} - {self.order}"

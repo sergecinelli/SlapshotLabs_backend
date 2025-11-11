@@ -13,6 +13,7 @@ from django.contrib.auth import get_user_model
 from django.http import HttpRequest, FileResponse
 from django.core.files import File as FileSaver
 from django.core.files.storage import default_storage
+from django.core.exceptions import ValidationError
 from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
@@ -455,9 +456,12 @@ def add_game(request: HttpRequest, data: GameIn):
             game.away_goalies.set(data.away_goalies)
             game.home_players.set(data.home_players)
             game.away_players.set(data.away_players)
+            game.full_clean()
             game.save()
             # if data.status == 3:
             #     GameEventsAnalysisQueue.objects.create(game=game, action=1)
+    except ValidationError as e:
+        return 400, {"message": str(e)}
     except IntegrityError as e:
         return resp.entry_already_exists("Game", str(e))
     game = Game.objects.get(id=game.id)
@@ -471,43 +475,47 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
         return 400, {"message": f"Invalid status: {data_status}"}
     if data.get('game_type_id') in [game_type.id for game_type in GameType.objects.filter(gametypename__is_actual=True)] and data.get('game_type_name_id') is None:
         return 400, {"message": "If game type has names, game type name must be provided."}
-    with transaction.atomic(using='hockey'):
-        if data_status is not None and game.status != data_status and data_status == 3:
-            # Game has finished, add its data to statistics.
-            GameEventsAnalysisQueue.objects.create(game=game, action=1)
-        elif data_status is not None and game.status == 3 and data_status != 3:
-            # Game finish has been undone, remove its data from statistics.
-            GameEventsAnalysisQueue.objects.create(game=game, action=2)
-        elif data_status is not None and game.status == data_status and data_status == 3:
-            # Game has been updated after finishing, re-apply its data to statistics.
-            GameEventsAnalysisQueue.objects.create(game=game, action=3)
-            GameEventsAnalysisQueue.objects.create(game=game, action=1)
+    try:
+        with transaction.atomic(using='hockey'):
+            if data_status is not None and game.status != data_status and data_status == 3:
+                # Game has finished, add its data to statistics.
+                GameEventsAnalysisQueue.objects.create(game=game, action=1)
+            elif data_status is not None and game.status == 3 and data_status != 3:
+                # Game finish has been undone, remove its data from statistics.
+                GameEventsAnalysisQueue.objects.create(game=game, action=2)
+            elif data_status is not None and game.status == data_status and data_status == 3:
+                # Game has been updated after finishing, re-apply its data to statistics.
+                GameEventsAnalysisQueue.objects.create(game=game, action=3)
+                GameEventsAnalysisQueue.objects.create(game=game, action=1)
 
-        if (data.get('home_team_goalie_id') is not None or data.get('away_team_goalie_id') is not None) and game.status > 1:
-            transaction.set_rollback(True, using='hockey')
-            return 400, {"message": f"Goalies can only be set here before the game starts. After the game starts, goalies can only be added by the '{EventName.GOALIE_CHANGE}' event."}
+            if (data.get('home_team_goalie_id') is not None or data.get('away_team_goalie_id') is not None) and game.status > 1:
+                transaction.set_rollback(True, using='hockey')
+                return 400, {"message": f"Goalies can only be set here before the game starts. After the game starts, goalies can only be added by the '{EventName.GOALIE_CHANGE}' event."}
 
-        if data.get('home_team_goalie_id') is not None:
-            GameGoalie.objects.filter(game=game, goalie__team=game.home_team).delete()
-            GameGoalie.objects.create(game=game, goalie_id=data.get('home_team_goalie_id'), start_period_id=1, start_time=datetime.time(0, 0, 0))
-        if data.get('away_team_goalie_id') is not None:
-            GameGoalie.objects.filter(game=game, goalie__team=game.away_team).delete()
-            GameGoalie.objects.create(game=game, goalie_id=data.get('away_team_goalie_id'), start_period_id=1, start_time=datetime.time(0, 0, 0))
+            if data.get('home_team_goalie_id') is not None:
+                GameGoalie.objects.filter(game=game, goalie__team=game.home_team).delete()
+                GameGoalie.objects.create(game=game, goalie_id=data.get('home_team_goalie_id'), start_period_id=1, start_time=datetime.time(0, 0, 0))
+            if data.get('away_team_goalie_id') is not None:
+                GameGoalie.objects.filter(game=game, goalie__team=game.away_team).delete()
+                GameGoalie.objects.create(game=game, goalie_id=data.get('away_team_goalie_id'), start_period_id=1, start_time=datetime.time(0, 0, 0))
 
-        if data.get('date') is not None and game.date != data.get('date'):
-            game.season = get_current_season(data.get('date'))
+            if data.get('date') is not None and game.date != data.get('date'):
+                game.season = get_current_season(data.get('date'))
 
-        for attr, value in {k: v for k, v in data.items() if k not in ["home_goalies", "away_goalies", "home_players", "away_players"]}.items():
-            setattr(game, attr, value)
-        if data.get('home_goalies') is not None:
-            game.home_goalies.set(data['home_goalies'])
-        if data.get('away_goalies') is not None:
-            game.away_goalies.set(data['away_goalies'])
-        if data.get('home_players') is not None:
-            game.home_players.set(data['home_players'])
-        if data.get('away_players') is not None:
-            game.away_players.set(data['away_players'])
-        game.save()
+            for attr, value in {k: v for k, v in data.items() if k not in ["home_goalies", "away_goalies", "home_players", "away_players"]}.items():
+                setattr(game, attr, value)
+            if data.get('home_goalies') is not None:
+                game.home_goalies.set(data['home_goalies'])
+            if data.get('away_goalies') is not None:
+                game.away_goalies.set(data['away_goalies'])
+            if data.get('home_players') is not None:
+                game.home_players.set(data['home_players'])
+            if data.get('away_players') is not None:
+                game.away_players.set(data['away_players'])
+            game.full_clean()
+            game.save()
+    except ValidationError as e:
+        return 400, {"message": str(e)}
     return 204, None
 
 @router.delete("/game/{game_id}", response={204: None})
