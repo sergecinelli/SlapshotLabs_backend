@@ -20,14 +20,14 @@ from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_NAME, EventNa
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
-                      GoalieSeasonsGet, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
+                      GoalieSeasonsGet, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelFullIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut)
 from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, Highlight, HighlightReel, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers)
 from .utils import api_response_templates as resp
-from .utils.db_utils import (form_game_goalie_out, form_game_dashboard_game_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
+from .utils.db_utils import (create_highlight, form_game_goalie_out, form_game_dashboard_game_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
                              get_game_current_goalies, get_no_goalie, update_game_faceoffs_from_event,
                              update_game_shots_from_event, update_game_turnovers_from_event)
 
@@ -749,24 +749,33 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
 
 # region Highlight reels
 
-@router.get('/highlight-reels', response=list[HighlightReelOut])
+@router.get('/highlight-reels', response=list[HighlightReelListOut])
 def get_highlight_reels(request: HttpRequest):
-    highlight_reels = HighlightReel.objects.all()
+    highlight_reels = HighlightReel.objects.all() # TODO: filter by current user
     highlight_reels_users = list(set([reel.user_email for reel in highlight_reels]))
     users = User.objects.filter(email__in=highlight_reels_users)
     users_dict = {user.email: f'{user.first_name} {user.last_name}' for user in users}
     highlight_reels_out = []
     for reel in highlight_reels:
-        highlight_reels_out.append(HighlightReelListOut(id=reel.id, name=reel.name, description=reel.description, date=reel.date, created_by=users_dict[reel.user_email]))
+        highlight_reels_out.append(HighlightReelListOut(id=reel.id, name=reel.name, description=reel.description,
+                                                        date=reel.date, created_by=users_dict[reel.user_email]))
     return highlight_reels_out
 
-@router.post('/highlight-reels', response={200: ObjectId})
-def create_highlight_reel(request: HttpRequest, data: HighlightReelIn):
-    # TODO: Add current date to reel automatically?
-    highlight_reel = HighlightReel.objects.create(name=data.name, description=data.description, user_email=request.user.email, game_events=data.game_events)
+@router.post('/highlight-reels', response={200: ObjectId, 400: Message},
+             description=("Create a new highlight reel and add highlights to it.\n\n"
+             "Each highlight should have either a game event ID or a custom event fields filled in."))
+def add_highlight_reel(request: HttpRequest, data: HighlightReelFullIn):
+    try:
+        with transaction.atomic(using='hockey'):
+            highlight_reel = HighlightReel.objects.create(name=data.name, description=data.description,
+                user_email=request.user.email)
+            for highlight in data.highlights:
+                create_highlight(highlight, highlight_reel, request.user.email)
+    except ValueError as e:
+        return 400, {"message": str(e)}
     return {"id": highlight_reel.id}
 
-@router.patch('/highlight-reels/{highlight_reel_id}', response={204: None})
+@router.patch('/highlight-reels/{highlight_reel_id}', response={204: None}, description="Update a highlight reel.")
 def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: PatchDict[HighlightReelIn]):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
     for attr, value in data.items():
@@ -777,27 +786,29 @@ def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: Pa
 @router.delete('/highlight-reels/{highlight_reel_id}', response={204: None})
 def delete_highlight_reel(request: HttpRequest, highlight_reel_id: int):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
-    highlight_reel.delete()
+    highlights = highlight_reel.highlights.all()
+    try:
+        with transaction.atomic(using='hockey'):
+            for highlight in highlights:
+                if highlight.custom_event is not None:
+                    highlight.custom_event.delete()
+                highlight.delete()
+            highlight_reel.delete()
+    except ValueError as e:
+        return 400, {"message": str(e)}
     return 204, None
 
 @router.get('/highlight-reels/{highlight_reel_id}/highlights', response=list[HighlightOut])
 def get_highlight_reel_highlights(request: HttpRequest, highlight_reel_id: int):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
-    return highlight_reel.highlights.all()
+    return highlight_reel.highlights.order_by('order').all()
 
 @router.post('/highlight-reels/{highlight_reel_id}/highlights', response={200: ObjectId, 400: Message})
 def add_highlight(request: HttpRequest, highlight_reel_id: int, data: HighlightIn):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
     try:
         with transaction.atomic(using='hockey'):
-            if data.game_event_id is None:
-                game_event_id = None
-                custom_event = CustomEvents.objects.create(event_name=data.event_name, note=data.note, youtube_link=data.youtube_link,
-                                                        date=data.date, time=data.time, user_email=request.user.email)
-            else:
-                game_event_id = data.game_event_id
-                custom_event = None
-            highlight = Highlight.objects.create(game_event_id=game_event_id, custom_event=custom_event, highlight_reel_id=highlight_reel.id, order=data.order)
+            highlight = create_highlight(data, highlight_reel, request.user.email)
     except ValueError as e:
         return 400, {"message": str(e)}
     return {"id": highlight.id}
@@ -808,9 +819,7 @@ def delete_highlight(request: HttpRequest, highlight_id: int):
     try:
         with transaction.atomic(using='hockey'):
             if highlight.custom_event is not None:
-                # Remove the custom event if it is not associated with any other highlights.
-                if highlight.custom_event.highlights.count() == 1:
-                    highlight.custom_event.delete()
+                highlight.custom_event.delete()
             highlight.delete()
     except ValueError as e:
         return 400, {"message": str(e)}

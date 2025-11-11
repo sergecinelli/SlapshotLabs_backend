@@ -582,7 +582,7 @@ class HighlightReel(models.Model):
 
 class Highlight(models.Model):
     game_event = models.ForeignKey(GameEvents, on_delete=models.RESTRICT, null=True, blank=True)
-    custom_event = models.ForeignKey(CustomEvents, on_delete=models.RESTRICT, related_name='highlights', null=True, blank=True)
+    custom_event = models.OneToOneField(CustomEvents, on_delete=models.SET_NULL, related_name='highlights', null=True, blank=True)
     highlight_reel = models.ForeignKey(HighlightReel, related_name='highlights', on_delete=models.CASCADE, null=True, blank=True)
     order = models.IntegerField(default=0)
 

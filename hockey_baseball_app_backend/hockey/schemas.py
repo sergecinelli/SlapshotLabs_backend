@@ -441,8 +441,8 @@ class CustomEventOut(CustomEventIn):
 
 class HighlightIn(Schema):
     game_event_id: int | None = None
-    event_name: str
-    note: str
+    event_name: str | None = None
+    note: str | None = None
     youtube_link: str | None = None
     date: datetime.date | None = None
     time: datetime.time | None = None
@@ -494,7 +494,7 @@ class HighlightOut(HighlightIn):
         if obj.game_event is not None:
             return f"{obj.game_event.period.name} / {obj.game_event.time.strftime('%M:%S')}"
         if obj.custom_event is not None:
-            return obj.custom_event.time
+            return obj.custom_event.time.strftime('%H:%M:%S')
         return None
 
     @staticmethod
@@ -504,7 +504,9 @@ class HighlightOut(HighlightIn):
 class HighlightReelIn(Schema):
     name: str
     description: str
-    game_events: list[int]
+
+class HighlightReelFullIn(HighlightReelIn):
+    highlights: list[HighlightIn]
 
 class HighlightReelListOut(Schema):
     id: int

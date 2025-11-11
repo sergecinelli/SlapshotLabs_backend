@@ -2,8 +2,8 @@ import datetime
 
 from django.db import IntegrityError
 
-from hockey.models import Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Player, PlayerSeason, Season, ShotType, Team
-from hockey.schemas import GameDashboardGameOut, GameEventIn, GameGoalieOut, GameOut, GamePlayerOut, GoalieOut, PlayerOut
+from hockey.models import CustomEvents, Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Highlight, HighlightReel, Player, PlayerSeason, Season, ShotType, Team
+from hockey.schemas import GameDashboardGameOut, GameEventIn, GameGoalieOut, GameOut, GamePlayerOut, GoalieOut, HighlightIn, PlayerOut
 from hockey.utils.constants import NO_GOALIE_NAME, EventName, GoalType
 
 
@@ -285,3 +285,24 @@ def update_game_faceoffs_from_event(game: Game, data: GameEventIn | None = None,
     return None
 
 # endregion Game events updates
+
+# region Create complex items
+
+def create_highlight(data: HighlightIn, highlight_reel: HighlightReel, user_email: str) -> Highlight:
+    if data.order is None:
+        raise ValueError("Order is required for highlights.")
+    if data.game_event_id is None:
+        game_event_id = None
+        custom_event = CustomEvents.objects.create(event_name=data.event_name, note=data.note, youtube_link=data.youtube_link,
+                                                   date=data.date, time=data.time, user_email=user_email)
+    else:
+        if data.event_name is not None or data.note is not None or data.youtube_link is not None or data.date is not None or data.time is not None:
+            raise ValueError("If game event ID is provided, none of the other fields except order should be provided.")
+        game_event_id = data.game_event_id
+        custom_event = None
+    highlight = Highlight(game_event_id=game_event_id, custom_event=custom_event, highlight_reel_id=highlight_reel.id, order=data.order, user_email=user_email)
+    highlight.full_clean()
+    highlight.save()
+    return highlight
+
+# endregion Create complex items
