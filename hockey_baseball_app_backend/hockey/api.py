@@ -199,7 +199,7 @@ def get_team_levels(request: HttpRequest):
 
 @router.get('/team/list', response=list[TeamOut])
 def get_teams(request: HttpRequest):
-    teams = Team.objects.all()
+    teams = Team.objects.filter(is_archived=False)
     return teams
 
 @router.get('/team/{team_id}', response=TeamOut)
@@ -222,7 +222,7 @@ def add_team(request: HttpRequest, data: TeamIn, logo: File[UploadedFile] = None
         return resp.entry_already_exists("Team")
     return {"id": team.id}
 
-@router.patch("/team/{team_id}", response={204: None})
+@router.patch("/team/{team_id}", response={204: None, 400: Message})
 def update_team(request: HttpRequest, team_id: int, data: PatchDict[TeamIn], logo: File[UploadedFile] = None):
     team = get_object_or_404(Team, id=team_id)
     for attr, value in data.items():
@@ -235,11 +235,16 @@ def update_team(request: HttpRequest, team_id: int, data: PatchDict[TeamIn], log
         return resp.entry_already_exists("Team")
     return 204, None
 
-@router.delete("/team/{team_id}", response={204: None})
+@router.delete("/team/{team_id}", response={200: Message})
 def delete_team(request: HttpRequest, team_id: int):
     team = get_object_or_404(Team, id=team_id)
-    team.delete()
-    return 204, None
+    try:
+        team.delete()
+    except RestrictedError as e:
+        team.is_archived = True
+        team.save()
+        return 200, {"message": "Archived."}
+    return 200, {"message": "Deleted."}
 
 @router.get('/season/list', response=list[SeasonOut])
 def get_seasons(request: HttpRequest):
