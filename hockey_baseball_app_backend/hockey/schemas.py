@@ -318,6 +318,20 @@ class GameOut(Schema):
 
     game_period_id: int | None = None
 
+class GameBannerOut(Schema):
+    id: int
+    home_team_id: int
+    away_team_id: int
+    home_team_name: str
+    away_team_name: str
+    date: datetime.date
+    time: datetime.time
+    game_type_name: str | None
+    arena_name: str
+    rink_name: str
+    home_goals: int
+    away_goals: int
+
 class GameTypeRecordOut(Schema):
     wins: int
     losses: int

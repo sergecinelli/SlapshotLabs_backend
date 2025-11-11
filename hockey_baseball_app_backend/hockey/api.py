@@ -19,7 +19,7 @@ from faker_animals import AnimalsProvider
 
 from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_NAME, EventName, GameStatus, get_constant_class_int_choices
 
-from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
+from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
                       GoalieSeasonsGet, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelFullIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
@@ -354,6 +354,17 @@ def get_games(request: HttpRequest, on_now: bool = False):
     if on_now:
         games = games.filter(status=2)
     return games.order_by('-date').all()
+
+@router.get('/game/list/banner', response=list[GameBannerOut], description="Returns a list of current games for the banner.")
+def get_games_banner(request: HttpRequest):
+    games = Game.objects.exclude(is_deprecated=True).select_related('rink', 'game_type_name', 'home_team', 'away_team').filter(status=2)
+    games_out = []
+    for game in games:
+        games_out.append(GameBannerOut(id=game.id, home_team_id=game.home_team_id, away_team_id=game.away_team_id,
+            home_team_name=game.home_team.name, away_team_name=game.away_team.name,
+            date=game.date, time=game.time, game_type_name=(game.game_type_name.name if game.game_type_name is not None else None),
+            arena_name=game.rink.arena.name, rink_name=game.rink.name, home_goals=game.home_goals, away_goals=game.away_goals))
+    return games_out
 
 @router.get('/game/list/dashboard', response=GameDashboardOut)
 def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | None = None):
