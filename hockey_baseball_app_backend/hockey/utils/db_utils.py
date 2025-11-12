@@ -310,6 +310,8 @@ def create_highlight(data: HighlightIn, highlight_reel: HighlightReel, user_emai
     if data.order is None:
         raise ValueError("Order is required for highlights.")
     if data.game_event_id is None:
+        if data.event_name is None or data.note is None:
+            raise ValueError("Event name and note are required for custom events.")
         game_event_id = None
         custom_event = CustomEvents.objects.create(event_name=data.event_name, note=data.note, youtube_link=data.youtube_link,
                                                    date=data.date, time=data.time, user_email=user_email)

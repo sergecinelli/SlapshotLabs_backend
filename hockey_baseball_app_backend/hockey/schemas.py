@@ -465,10 +465,10 @@ class HighlightIn(Schema):
 class HighlightOut(HighlightIn):
     id: int
     event_name: str
-    note: str
-    youtube_link: str | None = None
-    date: datetime.date | None = None
-    time: str | None = None
+    note: str | None
+    youtube_link: str | None
+    date: datetime.date | None
+    time: str | None
     is_custom: bool = Field(..., description="Whether the highlight is a custom event.")
 
     @staticmethod
@@ -480,7 +480,7 @@ class HighlightOut(HighlightIn):
         return "(no associated event)"
 
     @staticmethod
-    def resolve_note(obj: Highlight) -> str:
+    def resolve_note(obj: Highlight) -> str | None:
         if obj.game_event is not None:
             return obj.game_event.note
         if obj.custom_event is not None:
