@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.apps import apps
 
-from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_NAME
+from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME
+from hockey.utils.db_utils import is_no_goalie_object
 
 from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod,
                      GamePlayer, GameType, Goalie, OffensiveZoneEntry, Player, PlayerPosition, PlayerTransaction,
@@ -80,12 +81,12 @@ class GoalieAdmin(admin.ModelAdmin):
     search_fields = ['player__last_name', 'player__first_name', 'player__team__name', 'player__number', 'player__is_archived']
 
     def has_delete_permission(self, request, obj=None):
-        if obj and obj.player.first_name == NO_GOALIE_NAME:
+        if obj and is_no_goalie_object(obj.player):
             return False  # This goalie is used in case of no goalie in net, so it cannot be deleted.
         return super().has_delete_permission(request, obj)
 
     def has_change_permission(self, request, obj=None):
-        if obj and obj.player.first_name == NO_GOALIE_NAME:
+        if obj and is_no_goalie_object(obj.player):
             return False  # This goalie is used in case of no goalie in net, so it cannot be changed.
         return super().has_change_permission(request, obj)
 
@@ -96,12 +97,12 @@ class PlayerAdmin(admin.ModelAdmin):
     search_fields = ['last_name', 'first_name', 'team__name', 'number', 'is_archived']
 
     def has_delete_permission(self, request, obj=None):
-        if obj and obj.first_name == NO_GOALIE_NAME:
+        if obj and is_no_goalie_object(obj):
             return False  # This goalie is used in case of no goalie in net, so it cannot be deleted.
         return super().has_delete_permission(request, obj)
 
     def has_change_permission(self, request, obj=None):
-        if obj and obj.first_name == NO_GOALIE_NAME:
+        if obj and is_no_goalie_object(obj):
             return False  # This goalie is used in case of no goalie in net, so it cannot be changed.
         return super().has_change_permission(request, obj)
 

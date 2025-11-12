@@ -5,7 +5,8 @@ from typing import Any, Final, Type
 # region Constant values
 
 GOALIE_POSITION_NAME: Final[str] = "Goalie"
-NO_GOALIE_NAME: Final[str] = "NO GOALIE"
+NO_GOALIE_FIRST_NAME: Final[str] = "No"
+NO_GOALIE_LAST_NAME: Final[str] = "Goalie"
 
 # endregion
 

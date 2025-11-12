@@ -18,7 +18,7 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
-from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_NAME, EventName, GameStatus, get_constant_class_int_choices
+from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, EventName, GameStatus, get_constant_class_int_choices
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
@@ -30,7 +30,7 @@ from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division
                      PlayerPosition, PlayerSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers)
 from .utils import api_response_templates as resp
 from .utils.db_utils import (create_highlight, form_game_goalie_out, form_game_dashboard_game_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
-                             get_game_current_goalies, get_no_goalie, update_game_faceoffs_from_event,
+                             get_game_current_goalies, get_no_goalie, is_no_goalie_dict, is_no_goalie_object, update_game_faceoffs_from_event,
                              update_game_shots_from_event, update_game_turnovers_from_event)
 
 router = Router(tags=["Hockey"])
@@ -68,6 +68,8 @@ def get_goalie_photo(request: HttpRequest, goalie_id: int):
 
 @router.post('/goalie', response={200: ObjectId, 400: Message, 503: Message})
 def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] = None):
+    if is_no_goalie_object(data):
+        return 400, {"message": "This goalie is used in case of no goalie in net, so it cannot be added."}
     try:
         with transaction.atomic(using='hockey'):
             goalie = Player(position=PlayerPosition.objects.get(name=GOALIE_POSITION_NAME), **data.dict())
@@ -78,14 +80,16 @@ def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] =
         return resp.entry_already_exists("Goalie", str(e))
     return {"id": goalie.id}
 
-@router.patch("/goalie/{goalie_id}", response={204: None, 403: Message})
+@router.patch("/goalie/{goalie_id}", response={204: None, 400: Message, 403: Message})
 def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn], photo: File[UploadedFile] = None):
     goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
-    if goalie.first_name == NO_GOALIE_NAME:
+    if is_no_goalie_object(goalie):
         return 403, {"message": "This goalie is used in case of no goalie in net, so it cannot be updated."}
     old_team_id = goalie.team_id
     for attr, value in data.items():
         setattr(goalie, attr, value)
+    if is_no_goalie_object(goalie):
+        return 400, {"message": "This name is used in case of no goalie in net, so it cannot be set."}
     if photo is not None:
         goalie.photo = photo
     try:
@@ -102,7 +106,7 @@ def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn
 @router.delete("/goalie/{goalie_id}", response={200: Message, 403: Message})
 def delete_goalie(request: HttpRequest, goalie_id: int):
     goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
-    if goalie.first_name == NO_GOALIE_NAME:
+    if is_no_goalie_object(goalie):
         return 403, {"message": "This goalie is used in case of no goalie in net, so they cannot be deleted."}
     try:
         goalie.delete()
@@ -141,7 +145,7 @@ def get_player_photo(request: HttpRequest, player_id: int):
 @router.post('/player', response={200: ObjectId, 400: Message})
 def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] = None):
     try:
-        if data.position_id == PlayerPosition.objects.get(name=GOALIE_POSITION_NAME).id:
+        if data.position_id == PlayerPosition.objects.get(name=GOALIE_POSITION_NAME).id or is_no_goalie_object(data):
             return 400, {"message": "Goalies are not added through this endpoint."}
         player = Player(**data.dict())
         player.photo = photo
@@ -150,12 +154,16 @@ def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] =
         return resp.entry_already_exists("Player", str(e))
     return {"id": player.id}
 
-@router.patch("/player/{player_id}", response={204: None})
+@router.patch("/player/{player_id}", response={204: None, 400: Message})
 def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn], photo: File[UploadedFile] = None):
+    if data.get('position_id') == PlayerPosition.objects.get(name=GOALIE_POSITION_NAME).id:
+        return 400, {"message": "Goalies are not updated through this endpoint."}
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
     old_team_id = player.team_id
     for attr, value in data.items():
         setattr(player, attr, value)
+    if is_no_goalie_object(player):
+        return 400, {"message": "Goalies are not updated through this endpoint."}
     if photo is not None:
         player.photo = photo
     try:
@@ -216,9 +224,11 @@ def get_team_logo(request: HttpRequest, team_id: int):
 @router.post('/team', response={200: ObjectId, 400: Message})
 def add_team(request: HttpRequest, data: TeamIn, logo: File[UploadedFile] = None):
     try:
-        team = Team(**data.dict())
-        team.logo = logo
-        team.save()
+        with transaction.atomic(using='hockey'):
+            team = Team(**data.dict())
+            team.logo = logo
+            team.save()
+            get_no_goalie(team.id) # Creates the no goalie for the team if it doesn't exist.
     except IntegrityError as e:
         return resp.entry_already_exists("Team")
     return {"id": team.id}
@@ -240,7 +250,9 @@ def update_team(request: HttpRequest, team_id: int, data: PatchDict[TeamIn], log
 def delete_team(request: HttpRequest, team_id: int):
     team = get_object_or_404(Team, id=team_id)
     try:
-        team.delete()
+        with transaction.atomic(using='hockey'):
+            get_no_goalie(team.id).player.delete() # Deletes the no goalie for the team.
+            team.delete()
     except RestrictedError as e:
         team.is_archived = True
         team.save()
@@ -430,6 +442,12 @@ def add_game(request: HttpRequest, data: GameIn):
         if data.game_type_id in [game_type.id for game_type in GameType.objects.filter(gametypename__is_actual=True)] and data.game_type_name_id is None:
             return 400, {"message": "If game type has names, game type name must be provided."}
         with transaction.atomic(using='hockey'):
+            home_no_goalie = get_no_goalie(data.home_team_id)
+            away_no_goalie = get_no_goalie(data.away_team_id)
+            if home_no_goalie not in data.home_goalies:
+                data.home_goalies.append(home_no_goalie)
+            if away_no_goalie not in data.away_goalies:
+                data.away_goalies.append(away_no_goalie)
             home_defensive_zone_exit = DefensiveZoneExit.objects.create()
             home_offensive_zone_entry = OffensiveZoneEntry.objects.create()
             home_shots = Shots.objects.create()
@@ -439,9 +457,9 @@ def add_game(request: HttpRequest, data: GameIn):
             away_shots = Shots.objects.create()
             away_turnovers = Turnovers.objects.create()
             if data.home_start_goalie_id is None:
-                data.home_start_goalie_id = get_no_goalie().player_id
+                data.home_start_goalie_id = home_no_goalie.player_id
             if data.away_start_goalie_id is None:
-                data.away_start_goalie_id = get_no_goalie().player_id
+                data.away_start_goalie_id = away_no_goalie.player_id
             game = Game.objects.create(home_defensive_zone_exit=home_defensive_zone_exit,
                         home_offensive_zone_entry=home_offensive_zone_entry,
                         home_shots=home_shots,
@@ -661,7 +679,7 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
             event_name = GameEventName.objects.filter(id=data.event_name_id).first()
 
             if event_name.name == EventName.GOALIE_CHANGE and data.goalie_id is None:
-                data.goalie_id = get_no_goalie().pk
+                data.goalie_id = get_no_goalie(data.team_id).pk
 
             if data.goalie_id is None and data.player_id is None and data.player_2_id is None:
                 raise ValueError("Please specify goalie ID and/or player ID(s).")

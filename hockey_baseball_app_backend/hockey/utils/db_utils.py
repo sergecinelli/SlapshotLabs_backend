@@ -1,10 +1,12 @@
 import datetime
+from typing import Any
 
 from django.db import IntegrityError
+from django.db.models.query import QuerySet
 
-from hockey.models import CustomEvents, Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Highlight, HighlightReel, Player, PlayerSeason, Season, ShotType, Team
+from hockey.models import CustomEvents, Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Highlight, HighlightReel, Player, PlayerPosition, PlayerSeason, Season, ShotType, Team
 from hockey.schemas import GameDashboardGameOut, GameEventIn, GameGoalieOut, GameOut, GamePlayerOut, GoalieOut, HighlightIn, PlayerOut
-from hockey.utils.constants import NO_GOALIE_NAME, EventName, GoalType
+from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, EventName, GoalType
 
 
 def get_current_season(date: datetime.date | None = None) -> Season | None:
@@ -13,11 +15,6 @@ def get_current_season(date: datetime.date | None = None) -> Season | None:
         date = datetime.datetime.now(datetime.timezone.utc).date()
     seasons = Season.objects.filter(start_date__lte=date).exclude(start_date__gt=date).order_by('-start_date').first()
     return seasons
-
-def get_no_goalie() -> Goalie:
-    """Gets the default goalie to be used if no goalie in net."""
-    no_goalie, _ = Goalie.objects.get_or_create(player__first_name=NO_GOALIE_NAME)
-    return no_goalie
 
 def get_game_current_goalies(game: Game) -> tuple[int, int]:
     goalie_change_event_name = GameEventName.objects.get(name=EventName.GOALIE_CHANGE)
@@ -28,6 +25,27 @@ def get_game_current_goalies(game: Game) -> tuple[int, int]:
     if away_goalie is None:
         away_goalie = game.away_start_goalie
     return (home_goalie.player_id, away_goalie.player_id)
+
+# region No goalie
+
+def is_no_goalie_object(player: Any) -> bool:
+    return (player.first_name == NO_GOALIE_FIRST_NAME and player.last_name == NO_GOALIE_LAST_NAME)
+
+def is_no_goalie_dict(player: dict[str, Any]) -> bool:
+    return (player.get('first_name') == NO_GOALIE_FIRST_NAME and player.get('last_name') == NO_GOALIE_LAST_NAME)
+
+def get_no_goalie(team_id: int) -> Goalie:
+    """Gets or creates the default goalie to be used if no goalie in net."""
+    no_goalie = Goalie.objects.filter(player__team_id=team_id, player__first_name=NO_GOALIE_FIRST_NAME, player__last_name=NO_GOALIE_LAST_NAME).first()
+    if no_goalie is None:
+        no_goalie_player = Player.objects.create(position=PlayerPosition.objects.get(name=GOALIE_POSITION_NAME),
+            first_name=NO_GOALIE_FIRST_NAME, last_name=NO_GOALIE_LAST_NAME, team_id=team_id, number=100, height=60, weight=90, shoots='L',
+            birth_year=datetime.date(2001, 1, 1), birthplace_country="Canada", address_country="Canada", address_region="Ontario",
+            address_city="Ottawa", address_street=f"Team {team_id}", address_postal_code="111111", player_bio="Empty Net")
+        no_goalie = Goalie.objects.create(player=no_goalie_player)
+    return no_goalie
+
+# endregion No goalie
 
 # region Form outputs
 
