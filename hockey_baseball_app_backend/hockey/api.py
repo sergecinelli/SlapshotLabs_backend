@@ -24,10 +24,10 @@ from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZone
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
                       GoalieSeasonsGet, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
-                      TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut)
+                      TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
 from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, Highlight, HighlightReel, OffensiveZoneEntry, Player,
-                     PlayerPosition, PlayerSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers)
+                     PlayerPosition, PlayerSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers, VideoLibrary)
 from .utils import api_response_templates as resp
 from .utils.db_utils import (create_highlight, form_game_goalie_out, form_game_dashboard_game_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
                              get_game_current_goalies, get_no_goalie, is_no_goalie_dict, is_no_goalie_object, update_game_faceoffs_from_event,
@@ -666,6 +666,11 @@ def get_shot_types(request: HttpRequest):
     shot_types = ShotType.objects.order_by('name').all()
     return shot_types
 
+# @router.get('/game-event/list/with-video', response=list[GameEventOut])
+# def get_game_events_with_video(request: HttpRequest):
+#     game_events = GameEvents.objects.exclude(youtube_link=None).all()
+#     return game_events
+
 @router.get('/game-event/{game_event_id}', response=GameEventOut)
 def get_game_event(request: HttpRequest, game_event_id: int):
     game_event = get_object_or_404(GameEvents.objects, id=game_event_id)
@@ -814,34 +819,6 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
 
 # region Highlight reels
 
-@router.get('/highlight-reels/temp/emailtoid', response={204: None})
-def highlight_reels_temp_emailtoid(request: HttpRequest):
-    highlight_reels = HighlightReel.objects.all()
-    for reel in highlight_reels:
-        reel_user = User.objects.using('default').filter(email=reel.user_email).first()
-        if reel_user is not None:
-            reel.user_id = reel_user.id
-        else:
-            reel.user_id = None
-        reel.save()
-    highlights = Highlight.objects.all()
-    for highlight in highlights:
-        highlight_user = User.objects.using('default').filter(email=highlight.user_email).first()
-        if highlight_user is not None:
-            highlight.user_id = highlight_user.id
-        else:
-            highlight.user_id = None
-        highlight.save()
-    custom_events = CustomEvents.objects.all()
-    for custom_event in custom_events:
-        custom_event_user = User.objects.using('default').filter(email=custom_event.user_email).first()
-        if custom_event_user is not None:
-            custom_event.user_id = custom_event_user.id
-        else:
-            custom_event.user_id = None
-        custom_event.save()
-    return 204, None
-
 @router.get('/highlight-reels', response=list[HighlightReelListOut])
 def get_highlight_reels(request: HttpRequest):
     highlight_reels = HighlightReel.objects.all() # TODO: filter by current user
@@ -953,6 +930,42 @@ def delete_highlight(request: HttpRequest, highlight_id: int):
             highlight.delete()
     except ValueError as e:
         return 400, {"message": str(e)}
+    return 204, None
+
+# endregion
+
+# region Video Library
+
+@router.get('/video-library', response=list[VideoLibraryOut])
+def get_video_library(request: HttpRequest):
+    video_library = VideoLibrary.objects.all()
+    video_library_out = []
+    user_ids = list(set([video.user_id for video in video_library if video.user_id is not None]))
+    users = {user.id: user for user in User.objects.using('default').filter(id__in=user_ids)} if user_ids else {}
+    for video in video_library:
+        user = users.get(video.user_id) if video.user_id else None
+        added_by = f'{user.first_name} {user.last_name}' if user is not None else "?"
+        video_library_out.append(VideoLibraryOut(id=video.id, name=video.name, description=video.description,
+            youtube_link=video.youtube_link, added_by=added_by, date=video.date))
+    return video_library_out
+
+@router.post('/video-library', response={200: ObjectId, 400: Message})
+def add_video_library(request: HttpRequest, data: VideoLibraryIn):
+    video_library = VideoLibrary.objects.create(name=data.name, description=data.description, youtube_link=data.youtube_link, user_id=request.user.id)
+    return {"id": video_library.id}
+
+@router.patch('/video-library/{video_library_id}', response={204: None, 400: Message})
+def update_video_library(request: HttpRequest, video_library_id: int, data: PatchDict[VideoLibraryIn]):
+    video_library = get_object_or_404(VideoLibrary, id=video_library_id)
+    for attr, value in data.items():
+        setattr(video_library, attr, value)
+    video_library.save()
+    return 204, None
+
+@router.delete('/video-library/{video_library_id}', response={204: None, 400: Message})
+def delete_video_library(request: HttpRequest, video_library_id: int):
+    video_library = get_object_or_404(VideoLibrary, id=video_library_id)
+    video_library.delete()
     return 204, None
 
 # endregion

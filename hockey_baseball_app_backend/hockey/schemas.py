@@ -537,3 +537,17 @@ class HighlightReelOut(HighlightReelListOut):
     highlights: list[HighlightOut]
 
 # endregion
+
+# region Video Library
+
+class VideoLibraryIn(Schema):
+    name: str
+    description: str | None = None
+    youtube_link: str | None = None
+
+class VideoLibraryOut(VideoLibraryIn):
+    id: int
+    added_by: str
+    date: datetime.date
+
+# endregion

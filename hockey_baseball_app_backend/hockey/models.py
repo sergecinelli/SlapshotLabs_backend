@@ -607,6 +607,22 @@ class Highlight(models.Model):
     class Meta:
         db_table = "highlights"
 
+class VideoLibrary(models.Model):
+    name = models.CharField(max_length=150)
+    description = models.TextField(null=True, blank=True)
+    date = models.DateField(auto_now_add=True)
+
+    youtube_link = models.CharField("YouTube Link", max_length=1000)
+
+    user_id = models.IntegerField()
+    """User ID reference. Not a foreign key because the users database is separate. Use User.objects.using('default').get(id=user_id) to access the user."""
+
+    def __str__(self):
+        return f"{self.date} - {self.name}"
+
+    class Meta:
+        db_table = "video_library"
+
 class GameEventsAnalysisQueue(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
