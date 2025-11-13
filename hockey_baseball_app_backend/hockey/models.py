@@ -562,10 +562,7 @@ class CustomEvents(models.Model):
     date = models.DateField(null=True, blank=True)
     time = models.TimeField(null=True, blank=True)
 
-    user_email = models.CharField(max_length=255, null=True, blank=True)
-    """User who has created the user events. Not a foreign key because the users database is separate."""
-    
-    user_id = models.IntegerField(null=True, blank=True)
+    user_id = models.IntegerField()
     """User ID reference. Not a foreign key because the users database is separate. Use User.objects.using('default').get(id=user_id) to access the user."""
 
     def __str__(self):
@@ -579,10 +576,7 @@ class HighlightReel(models.Model):
     description = models.TextField()
     date = models.DateField(auto_now_add=True)
 
-    user_email = models.CharField(max_length=255, null=True, blank=True)
-    """User who has created the highlight reel. Not a foreign key because the users database is separate."""
-
-    user_id = models.IntegerField(null=True, blank=True)
+    user_id = models.IntegerField()
     """User ID reference. Not a foreign key because the users database is separate. Use User.objects.using('default').get(id=user_id) to access the user."""
 
     def __str__(self):
@@ -597,10 +591,7 @@ class Highlight(models.Model):
     highlight_reel = models.ForeignKey(HighlightReel, related_name='highlights', on_delete=models.CASCADE, null=True, blank=True)
     order = models.IntegerField(default=0)
 
-    user_email = models.CharField(max_length=255, null=True, blank=True)
-    """User who has created the highlight. Not a foreign key because the users database is separate."""
-
-    user_id = models.IntegerField(null=True, blank=True)
+    user_id = models.IntegerField()
     """User ID reference. Not a foreign key because the users database is separate. Use User.objects.using('default').get(id=user_id) to access the user."""
 
     def clean(self):
