@@ -1,6 +1,7 @@
 import datetime
 import inspect
 import uuid
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, DateField, ExpressionWrapper, UniqueConstraint, When, Value, F
@@ -561,9 +562,12 @@ class CustomEvents(models.Model):
     date = models.DateField(null=True, blank=True)
     time = models.TimeField(null=True, blank=True)
 
-    user_email = models.CharField(max_length=255)
+    user_email = models.CharField(max_length=255, null=True, blank=True)
     """User who has created the user events. Not a foreign key because the users database is separate."""
     
+    user_id = models.IntegerField(null=True, blank=True)
+    """User ID reference. Not a foreign key because the users database is separate. Use User.objects.using('default').get(id=user_id) to access the user."""
+
     def __str__(self):
         return f"{self.date} - {self.time} - {self.event_name}"
     
@@ -575,8 +579,11 @@ class HighlightReel(models.Model):
     description = models.TextField()
     date = models.DateField(auto_now_add=True)
 
-    user_email = models.CharField(max_length=255)
+    user_email = models.CharField(max_length=255, null=True, blank=True)
     """User who has created the highlight reel. Not a foreign key because the users database is separate."""
+
+    user_id = models.IntegerField(null=True, blank=True)
+    """User ID reference. Not a foreign key because the users database is separate. Use User.objects.using('default').get(id=user_id) to access the user."""
 
     def __str__(self):
         return f"{self.date} - {self.name}"
@@ -590,8 +597,11 @@ class Highlight(models.Model):
     highlight_reel = models.ForeignKey(HighlightReel, related_name='highlights', on_delete=models.CASCADE, null=True, blank=True)
     order = models.IntegerField(default=0)
 
-    user_email = models.CharField(max_length=255)
+    user_email = models.CharField(max_length=255, null=True, blank=True)
     """User who has created the highlight. Not a foreign key because the users database is separate."""
+
+    user_id = models.IntegerField(null=True, blank=True)
+    """User ID reference. Not a foreign key because the users database is separate. Use User.objects.using('default').get(id=user_id) to access the user."""
 
     def clean(self):
         if self.game_event is None and self.custom_event is None:

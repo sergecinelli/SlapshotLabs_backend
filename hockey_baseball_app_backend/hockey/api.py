@@ -814,16 +814,47 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
 
 # region Highlight reels
 
+@router.get('/highlight-reels/temp/emailtoid', response={204: None})
+def highlight_reels_temp_emailtoid(request: HttpRequest):
+    highlight_reels = HighlightReel.objects.all()
+    for reel in highlight_reels:
+        reel_user = User.objects.using('default').filter(email=reel.user_email).first()
+        if reel_user is not None:
+            reel.user_id = reel_user.id
+        else:
+            reel.user_id = None
+        reel.save()
+    highlights = Highlight.objects.all()
+    for highlight in highlights:
+        highlight_user = User.objects.using('default').filter(email=highlight.user_email).first()
+        if highlight_user is not None:
+            highlight.user_id = highlight_user.id
+        else:
+            highlight.user_id = None
+        highlight.save()
+    custom_events = CustomEvents.objects.all()
+    for custom_event in custom_events:
+        custom_event_user = User.objects.using('default').filter(email=custom_event.user_email).first()
+        if custom_event_user is not None:
+            custom_event.user_id = custom_event_user.id
+        else:
+            custom_event.user_id = None
+        custom_event.save()
+    return 204, None
+
 @router.get('/highlight-reels', response=list[HighlightReelListOut])
 def get_highlight_reels(request: HttpRequest):
     highlight_reels = HighlightReel.objects.all() # TODO: filter by current user
-    highlight_reels_users = list(set([reel.user_email for reel in highlight_reels]))
-    users = User.objects.filter(email__in=highlight_reels_users)
-    users_dict = {user.email: f'{user.first_name} {user.last_name}' for user in users}
     highlight_reels_out = []
+    
+    user_ids = list(set([reel.user_id for reel in highlight_reels if reel.user_id is not None]))
+    users = {user.id: user for user in User.objects.using('default').filter(id__in=user_ids)} if user_ids else {}
+    
     for reel in highlight_reels:
+        user = users.get(reel.user_id) if reel.user_id else None
+        created_by = f'{user.first_name} {user.last_name}' if user is not None else "?"
         highlight_reels_out.append(HighlightReelListOut(id=reel.id, name=reel.name, description=reel.description,
-                                                        date=reel.date, created_by=users_dict[reel.user_email]))
+                                                        date=reel.date, created_by=created_by))
     return highlight_reels_out
 
 @router.post('/highlight-reels', response={200: ObjectId, 400: Message},
@@ -832,10 +863,9 @@ def get_highlight_reels(request: HttpRequest):
 def add_highlight_reel(request: HttpRequest, data: HighlightReelIn):
     try:
         with transaction.atomic(using='hockey'):
-            highlight_reel = HighlightReel.objects.create(name=data.name, description=data.description,
-                user_email=request.user.email)
+            highlight_reel = HighlightReel.objects.create(name=data.name, description=data.description, user_id=request.user.id)
             for highlight in data.highlights:
-                create_highlight(highlight, highlight_reel, request.user.email)
+                create_highlight(highlight, highlight_reel, request.user.id)
     except ValueError as e:
         return 400, {"message": str(e)}
     return {"id": highlight_reel.id}
@@ -859,7 +889,7 @@ def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: Hi
                 highlight.delete()
             for highlight_data in data.highlights:
                 if highlight_data.id is None:
-                    create_highlight(highlight_data, highlight_reel, request.user.email)
+                    create_highlight(highlight_data, highlight_reel, request.user.id)
                 else:
                     highlight = get_object_or_404(Highlight, id=highlight_data.id)
                     # This returns only fields that were explicitly set in the request
@@ -876,7 +906,7 @@ def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: Hi
                     if "event_name" in provided_fields and "note" in provided_fields:
                         highlight.game_event_id = None
                         highlight.custom_event = CustomEvents.objects.create(event_name=highlight_data.event_name, note=highlight_data.note,
-                            youtube_link=highlight_data.youtube_link, date=highlight_data.date, time=highlight_data.time, user_email=request.user.email)
+                            youtube_link=highlight_data.youtube_link, date=highlight_data.date, time=highlight_data.time, user_id=request.user.id)
                         highlight.save()
                 highlight_reel.save()
     except ValueError as e:
@@ -908,7 +938,7 @@ def add_highlight(request: HttpRequest, highlight_reel_id: int, data: HighlightI
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
     try:
         with transaction.atomic(using='hockey'):
-            highlight = create_highlight(data, highlight_reel, request.user.email)
+            highlight = create_highlight(data, highlight_reel, request.user.id)
     except ValueError as e:
         return 400, {"message": str(e)}
     return {"id": highlight.id}

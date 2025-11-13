@@ -306,7 +306,7 @@ def update_game_faceoffs_from_event(game: Game, data: GameEventIn | None = None,
 
 # region Create complex items
 
-def create_highlight(data: HighlightIn, highlight_reel: HighlightReel, user_email: str) -> Highlight:
+def create_highlight(data: HighlightIn, highlight_reel: HighlightReel, user_id: int) -> Highlight:
     if data.order is None:
         raise ValueError("Order is required for highlights.")
     if data.game_event_id is None:
@@ -314,13 +314,13 @@ def create_highlight(data: HighlightIn, highlight_reel: HighlightReel, user_emai
             raise ValueError("Event name and note are required for custom events.")
         game_event_id = None
         custom_event = CustomEvents.objects.create(event_name=data.event_name, note=data.note, youtube_link=data.youtube_link,
-                                                   date=data.date, time=data.time, user_email=user_email)
+                                                   date=data.date, time=data.time, user_id=user_id)
     else:
         if data.event_name is not None or data.note is not None or data.youtube_link is not None or data.date is not None or data.time is not None:
             raise ValueError("If game event ID is provided, none of the other fields except order should be provided.")
         game_event_id = data.game_event_id
         custom_event = None
-    highlight = Highlight(game_event_id=game_event_id, custom_event=custom_event, highlight_reel_id=highlight_reel.id, order=data.order, user_email=user_email)
+    highlight = Highlight(game_event_id=game_event_id, custom_event=custom_event, highlight_reel_id=highlight_reel.id, order=data.order, user_id=user_id)
     highlight.full_clean()
     highlight.save()
     return highlight
