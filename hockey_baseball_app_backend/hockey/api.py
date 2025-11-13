@@ -22,7 +22,7 @@ from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, N
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
-                      GoalieSeasonsGet, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelFullIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
+                      GoalieSeasonsGet, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut)
 from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
@@ -829,7 +829,7 @@ def get_highlight_reels(request: HttpRequest):
 @router.post('/highlight-reels', response={200: ObjectId, 400: Message},
              description=("Create a new highlight reel and add highlights to it.\n\n"
              "Each highlight should have either a game event ID or a custom event fields filled in."))
-def add_highlight_reel(request: HttpRequest, data: HighlightReelFullIn):
+def add_highlight_reel(request: HttpRequest, data: HighlightReelIn):
     try:
         with transaction.atomic(using='hockey'):
             highlight_reel = HighlightReel.objects.create(name=data.name, description=data.description,
@@ -840,12 +840,47 @@ def add_highlight_reel(request: HttpRequest, data: HighlightReelFullIn):
         return 400, {"message": str(e)}
     return {"id": highlight_reel.id}
 
-@router.patch('/highlight-reels/{highlight_reel_id}', response={204: None}, description="Update a highlight reel.")
-def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: PatchDict[HighlightReelIn]):
+@router.put('/highlight-reels/{highlight_reel_id}', response={204: None, 400: Message},
+    description=("Update a highlight reel.\n\n"
+                 "If id is provided for a highlight, it will be updated, otherwise a new highlight will be created.\n\n"
+                 "Not provided highlights will be deleted."))
+def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: HighlightReelUpdateIn):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
-    for attr, value in data.items():
-        setattr(highlight_reel, attr, value)
-    highlight_reel.save()
+    highlight_reel.name = data.name
+    highlight_reel.description = data.description
+    keep_highlights = []
+    for highlight in data.highlights:
+        if highlight.id is not None:
+            keep_highlights.append(highlight.id)
+    highlights_to_delete = highlight_reel.highlights.exclude(id__in=keep_highlights)
+    try:
+        with transaction.atomic(using='hockey'):
+            for highlight in highlights_to_delete:
+                highlight.delete()
+            for highlight_data in data.highlights:
+                if highlight_data.id is None:
+                    create_highlight(highlight_data, highlight_reel, request.user.email)
+                else:
+                    highlight = get_object_or_404(Highlight, id=highlight_data.id)
+                    # This returns only fields that were explicitly set in the request
+                    provided_fields = highlight_data.dict(exclude_unset=True)
+                    if "order" in provided_fields:
+                        highlight.order = highlight_data.order
+                    if ((provided_fields.get("event_name") is not None or provided_fields.get("note") is not None) and
+                        provided_fields.get("game_event_id") is not None):
+                        raise ValueError("If game event ID is provided, none of the other fields except order should be provided.")
+                    if "game_event_id" in provided_fields:
+                        if highlight.custom_event is not None:
+                            highlight.custom_event.delete()
+                        highlight.game_event_id = highlight_data.game_event_id
+                    if "event_name" in provided_fields and "note" in provided_fields:
+                        highlight.game_event_id = None
+                        highlight.custom_event = CustomEvents.objects.create(event_name=highlight_data.event_name, note=highlight_data.note,
+                            youtube_link=highlight_data.youtube_link, date=highlight_data.date, time=highlight_data.time, user_email=request.user.email)
+                        highlight.save()
+                highlight_reel.save()
+    except ValueError as e:
+        return 400, {"message": str(e)}
     return 204, None
 
 @router.delete('/highlight-reels/{highlight_reel_id}', response={204: None})

@@ -462,13 +462,16 @@ class HighlightIn(Schema):
     time: datetime.time | None = None
     order: int | None = None
 
+class HighlightUpdateIn(HighlightIn):
+    id: int | None = None
+
 class HighlightOut(HighlightIn):
     id: int
     event_name: str
-    note: str | None
-    youtube_link: str | None
-    date: datetime.date | None
-    time: str | None
+    note: str | None = None
+    youtube_link: str | None = None
+    date: datetime.date | None = None
+    time: str | None = None
     is_custom: bool = Field(..., description="Whether the highlight is a custom event.")
 
     @staticmethod
@@ -518,9 +521,10 @@ class HighlightOut(HighlightIn):
 class HighlightReelIn(Schema):
     name: str
     description: str
-
-class HighlightReelFullIn(HighlightReelIn):
     highlights: list[HighlightIn]
+
+class HighlightReelUpdateIn(HighlightReelIn):
+    highlights: list[HighlightUpdateIn]
 
 class HighlightReelListOut(Schema):
     id: int
