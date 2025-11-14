@@ -420,7 +420,7 @@ class Game(models.Model):
     def clean(self):
         if self.home_team == self.away_team:
             raise ValidationError("Home team and away team cannot be the same.")
-        if self.home_start_goalie == self.away_start_goalie:
+        if self.home_start_goalie == self.away_start_goalie and self.home_start_goalie is not None:
             raise ValidationError("Home start goalie and away start goalie cannot be the same.")
         if self.game_type.name == "Tournament" and self.game_type_name is None:
             raise ValidationError("Tournament game must have a tournament name.")

@@ -329,6 +329,7 @@ class GameBannerOut(Schema):
     game_type_name: str | None
     arena_name: str
     rink_name: str
+    game_period_name: str | None
     home_goals: int
     away_goals: int
 
