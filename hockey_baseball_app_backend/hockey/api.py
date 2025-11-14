@@ -370,7 +370,9 @@ def get_games(request: HttpRequest, on_now: bool = False):
 
 @router.get('/game/list/banner', response=list[GameBannerOut], description="Returns a list of current games for the banner.")
 def get_games_banner(request: HttpRequest):
-    games = Game.objects.exclude(is_deprecated=True).select_related('rink', 'game_type_name', 'game_period', 'home_team', 'away_team').filter(status=2)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    games = Game.objects.exclude(is_deprecated=True).select_related('rink', 'game_type_name', 'game_period', 'home_team', 'away_team').\
+        filter(Q(status=2) | (Q(status=1) & Q(date__gte=now.date()) & Q(date__lte=(now + datetime.timedelta(days=1)).date()))).order_by('date')
     games_out = []
     for game in games:
         games_out.append(GameBannerOut(id=game.id, home_team_id=game.home_team_id, away_team_id=game.away_team_id,
@@ -378,7 +380,7 @@ def get_games_banner(request: HttpRequest):
             home_team_abbreviation=game.home_team.abbreviation, away_team_abbreviation=game.away_team.abbreviation,
             date=game.date, time=game.time, game_type_name=(game.game_type_name.name if game.game_type_name is not None else None),
             arena_name=game.rink.arena.name, rink_name=game.rink.name, game_period_name=(game.game_period.name if game.game_period is not None else None),
-            home_goals=game.home_goals, away_goals=game.away_goals))
+            home_goals=game.home_goals, away_goals=game.away_goals, status=game.status))
     return games_out
 
 @router.get('/game/list/dashboard', response=GameDashboardOut)

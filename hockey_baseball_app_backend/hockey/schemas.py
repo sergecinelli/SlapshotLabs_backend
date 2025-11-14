@@ -333,6 +333,7 @@ class GameBannerOut(Schema):
     arena_name: str
     rink_name: str
     game_period_name: str | None
+    status: int = Field(..., description=get_constant_class_int_description(GameStatus))
     home_goals: int
     away_goals: int
 
