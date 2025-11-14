@@ -34,6 +34,7 @@ env = environ.Env(
     EMAIL_HOST_USER=(str, ''),
     EMAIL_HOST_PASSWORD=(str, ''),
     DEFAULT_FROM_EMAIL=(str, 'noreply@example.com'),
+    AWS_STORAGE_BUCKET_NAME=(str, 'my-hockey-app-backend-storage'),
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -200,14 +201,14 @@ else:
         "default": {
             "BACKEND": "storages.backends.s3.S3Storage",
             "OPTIONS": {
-                "bucket_name": "my-hockey-app-backend-storage",
+                "bucket_name": env('AWS_STORAGE_BUCKET_NAME'),
                 "location": "media"
             },
         },
         "staticfiles": {
             "BACKEND": "storages.backends.s3.S3Storage",
             "OPTIONS": {
-                "bucket_name": "my-hockey-app-backend-storage",
+                "bucket_name": env('AWS_STORAGE_BUCKET_NAME'),
                 "location": "static",
             },
         }
