@@ -46,6 +46,7 @@ class Team(models.Model):
     level = models.ForeignKey(TeamLevel, on_delete=models.RESTRICT)
     division = models.ForeignKey(Division, on_delete=models.RESTRICT)
     name = models.CharField(max_length=150)
+    abbreviation = models.CharField(max_length=10, null=True, blank=True)
     logo = models.ImageField(upload_to='team_logo/')
     city = models.CharField(max_length=100)
 

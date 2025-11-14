@@ -375,6 +375,7 @@ def get_games_banner(request: HttpRequest):
     for game in games:
         games_out.append(GameBannerOut(id=game.id, home_team_id=game.home_team_id, away_team_id=game.away_team_id,
             home_team_name=game.home_team.name, away_team_name=game.away_team.name,
+            home_team_abbreviation=game.home_team.abbreviation, away_team_abbreviation=game.away_team.abbreviation,
             date=game.date, time=game.time, game_type_name=(game.game_type_name.name if game.game_type_name is not None else None),
             arena_name=game.rink.arena.name, rink_name=game.rink.name, game_period_name=(game.game_period.name if game.game_period is not None else None),
             home_goals=game.home_goals, away_goals=game.away_goals))

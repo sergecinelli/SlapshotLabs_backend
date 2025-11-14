@@ -136,9 +136,9 @@ class SeasonAdmin(admin.ModelAdmin):
 
 @admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):
-    list_display = ['name', 'age_group', 'level', 'division', 'is_archived']
+    list_display = ['name', 'abbreviation', 'age_group', 'level', 'division', 'is_archived']
     ordering = ['name']
-    search_fields = ['name', 'age_group', 'level', 'division', 'is_archived']
+    search_fields = ['name', 'abbreviation', 'age_group', 'level', 'division', 'is_archived']
 
 @admin.register(TeamSeason)
 class TeamSeasonAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):

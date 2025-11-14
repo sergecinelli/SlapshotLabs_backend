@@ -197,6 +197,7 @@ class TeamIn(Schema):
     level_id: int
     division_id: int
     name: str
+    abbreviation: str | None = None
     city: str
 
 class TeamOut(TeamIn):
@@ -324,6 +325,8 @@ class GameBannerOut(Schema):
     away_team_id: int
     home_team_name: str
     away_team_name: str
+    home_team_abbreviation: str | None
+    away_team_abbreviation: str | None
     date: datetime.date
     time: datetime.time
     game_type_name: str | None
