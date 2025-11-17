@@ -29,9 +29,9 @@ class EventName:
     GOALIE_CHANGE: Final[str] = "Goalie Change"
 
 class GoalType:
-    """\"Short Handed\", \"Normal\" or \"Power Play\"."""
+    """\"Short Handed\", \"Even Strength\" or \"Power Play\"."""
     SHORT_HANDED: Final[str] = "Short Handed"
-    NORMAL: Final[str] = "Normal"
+    EVEN_STRENGTH: Final[str] = "Even Strength"
     POWER_PLAY: Final[str] = "Power Play"
 
 class RinkZone:
