@@ -355,19 +355,23 @@ class GameDashboardOut(Schema):
     upcoming_games: list[GameDashboardGameOut]
     previous_games: list[GameDashboardGameOut]
 
-class GameGoalieOut(Schema):
+class GoalieBaseOut(Schema):
     id: int
     first_name: str
     last_name: str
+
+class GameGoalieOut(GoalieBaseOut):
     goals_against: int
     shots_against: int
     saves: int
     save_percents: int
 
-class GamePlayerOut(Schema):
+class PlayerBaseOut(Schema):
     id: int
     first_name: str
     last_name: str
+
+class GamePlayerOut(PlayerBaseOut):
     goals: int
     assists: int
     shots_on_goal: int
@@ -382,10 +386,10 @@ class GamePlayersIn(Schema):
     player_ids: list[int]
 
 class GamePlayersOut(Schema):
-    home_goalies: list[GameGoalieOut]
-    home_players: list[GamePlayerOut]
-    away_goalies: list[GameGoalieOut]
-    away_players: list[GamePlayerOut]
+    home_goalies: list[GoalieBaseOut]
+    home_players: list[PlayerBaseOut]
+    away_goalies: list[GoalieBaseOut]
+    away_players: list[PlayerBaseOut]
 
 # endregion
 

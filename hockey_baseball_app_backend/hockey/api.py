@@ -21,8 +21,8 @@ from faker_animals import AnimalsProvider
 from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, EventName, GameStatus, get_constant_class_int_choices
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
-                      GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieSeasonOut,
-                      GoalieSeasonsGet, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerPositionOut, GoalieIn,
+                      GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieBaseOut, GoalieSeasonOut,
+                      GoalieSeasonsGet, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerBaseOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
 from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
@@ -623,12 +623,14 @@ def get_game_players(request: HttpRequest, game_id: int):
     home_players = []
     away_goalies = []
     away_players = []
-    for game_goalie in game.gamegoalie_set.all():
-        home_away = (home_goalies if game_goalie.goalie.team_id == game.home_team_id else away_goalies)
-        home_away.append(form_game_goalie_out(game_goalie))
-    for game_player in game.gameplayer_set.all():
-        home_away = (home_players if game_player.player.team_id == game.home_team_id else away_players)
-        home_away.append(form_game_player_out(game_player))
+    for home_goalie in game.home_goalies.all():
+        home_goalies.append(GoalieBaseOut(id=home_goalie.player_id, first_name=home_goalie.player.first_name, last_name=home_goalie.player.last_name))
+    for away_goalie in game.away_goalies.all():
+        away_goalies.append(GoalieBaseOut(id=away_goalie.player_id, first_name=away_goalie.player.first_name, last_name=away_goalie.player.last_name))
+    for home_player in game.home_players.all():
+        home_players.append(PlayerBaseOut(id=home_player.id, first_name=home_player.first_name, last_name=home_player.last_name))
+    for away_player in game.away_players.all():
+        away_players.append(PlayerBaseOut(id=away_player.id, first_name=away_player.first_name, last_name=away_player.last_name))
     return GamePlayersOut(home_goalies=home_goalies, home_players=home_players, away_goalies=away_goalies, away_players=away_players)
 
 @router.get('/game-player/goalie/{goalie_id}', response=list[GameGoalieOut])
