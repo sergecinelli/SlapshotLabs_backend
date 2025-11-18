@@ -3,7 +3,7 @@ from typing import Optional
 from ninja import Field, Schema
 
 from hockey.models import Game, Highlight
-from hockey.utils.constants import GameStatus, GoalType, RinkZone, get_constant_class_int_description, get_constant_class_str_description
+from hockey.utils.constants import EventName, GameStatus, GoalType, RinkZone, get_constant_class_int_description, get_constant_class_str_description
 
 # region Common
 
@@ -447,6 +447,26 @@ class GameLiveDataOut(Schema):
     home_turnovers: TurnoversOut
     away_turnovers: TurnoversOut
     events: list[GameEventOut]
+
+# endregion
+
+# region Spray charts
+
+class SprayChartFilters(Schema):
+    season_id: int | None = None
+    game_id: int | None = None
+
+class GoalieSprayChartFilters(SprayChartFilters):
+    shot_type_id: int | None = None
+
+class PlayerSprayChartFilters(SprayChartFilters):
+    event_name: str | None = Field(None, description=get_constant_class_str_description(EventName))
+    shot_type_id: int | None = None
+    is_scoring_chance: bool | None = None
+    goal_type: str | None = Field(None, description=get_constant_class_str_description(GoalType))
+
+class GameSprayChartFilters(Schema):
+    event_name: str | None = Field(None, description=get_constant_class_str_description(EventName))
 
 # endregion
 

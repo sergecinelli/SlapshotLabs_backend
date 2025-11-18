@@ -18,12 +18,12 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
-from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, EventName, GameStatus, get_constant_class_int_choices
+from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, EventName, GameStatus, GoalType, get_constant_class_int_choices
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
-                      GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameTypeOut, GameTypeRecordOut, GoalieBaseOut, GoalieSeasonOut,
-                      GoalieSeasonsGet, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerBaseOut, PlayerPositionOut, GoalieIn,
-                      GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, SeasonIn, SeasonOut, ShotsIn, ShotsOut,
+                      GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameSprayChartFilters, GameTypeOut, GameTypeRecordOut, GoalieBaseOut, GoalieSeasonOut,
+                      GoalieSeasonsGet, GoalieSprayChartFilters, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerBaseOut, PlayerPositionOut, GoalieIn,
+                      GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, SeasonIn, SeasonOut, ShotsIn, ShotsOut, SprayChartFilters,
                       TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
 from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, Highlight, HighlightReel, OffensiveZoneEntry, Player,
@@ -120,6 +120,23 @@ def delete_goalie(request: HttpRequest, goalie_id: int):
 def get_goalie_seasons(request: HttpRequest, data: GoalieSeasonsGet):
     return GoalieSeason.objects.filter(goalie_id=data.goalie_id, season_id__in=data.season_ids)
 
+@router.post("/goalie/{goalie_id}/spray-chart", response={200: list[GameEventOut], 400: Message})
+def get_goalie_spray_chart(request: HttpRequest, goalie_id: int, filters: GoalieSprayChartFilters):
+    events = GameEvents.objects.filter(goalie_id=goalie_id)
+
+    if (filters.season_id is not None) and (filters.game_id is not None):
+        return 400, {"message": "season_id and game_id cannot be provided at the same time."}
+
+    if filters.season_id is not None:
+        events = events.prefetch_related('game').filter(game__season_id=filters.season_id)
+    if filters.game_id is not None:
+        events = events.filter(game_id=filters.game_id)
+
+    if filters.shot_type_id is not None:
+        events = events.prefetch_related('event_name').filter(event_name__name=EventName.SHOT, shot_type_id=filters.shot_type_id)
+
+    return events.all()
+
 @router.get('/player/list', response=list[PlayerOut])
 def get_players(request: HttpRequest, team_id: int | None = None):
     current_season = get_current_season()
@@ -191,6 +208,29 @@ def delete_player(request: HttpRequest, player_id: int):
 @router.post("/player/seasons", response=list[PlayerSeasonOut])
 def get_player_seasons(request: HttpRequest, data: PlayerSeasonsGet):
     return PlayerSeason.objects.filter(player_id=data.player_id, season_id__in=data.season_ids)
+
+@router.post("/player/{player_id}/spray-chart", response={200: list[GameEventOut], 400: Message})
+def get_player_spray_chart(request: HttpRequest, player_id: int, filters: PlayerSprayChartFilters):
+    events = GameEvents.objects.filter(player_id=player_id)
+
+    if (filters.season_id is not None) and (filters.game_id is not None):
+        return 400, {"message": "season_id and game_id cannot be provided at the same time."}
+
+    if filters.season_id is not None:
+        events = events.prefetch_related('game').filter(game__season_id=filters.season_id)
+    if filters.game_id is not None:
+        events = events.filter(game_id=filters.game_id)
+
+    if filters.event_name is not None:
+        events = events.prefetch_related('event_name').filter(event_name__name=filters.event_name)
+    if filters.shot_type_id is not None:
+        events = events.prefetch_related('shot_type').filter(shot_type_id=filters.shot_type_id)
+    if filters.is_scoring_chance is not None:
+        events = events.filter(is_scoring_chance=filters.is_scoring_chance)
+    if filters.goal_type is not None:
+        events = events.filter(goal_type=filters.goal_type)
+
+    return events.all()
 
 # endregion
 
@@ -612,6 +652,13 @@ def get_game_events(request: HttpRequest, game_id: int):
     game_events = GameEvents.objects.filter(game_id=game_id).exclude(is_deprecated=True).order_by("period", "-time").all()
     return game_events
 
+@router.post('/game/{game_id}/spray-chart', response=list[GameEventOut])
+def get_game_spray_chart(request: HttpRequest, game_id: int, filters: GameSprayChartFilters):
+    events = GameEvents.objects.filter(game_id=game_id)
+    if filters.event_name is not None:
+        events = events.prefetch_related('event_name').filter(event_name__name=filters.event_name)
+    return events.all()
+
 # endregion
 
 # region Game players
@@ -820,6 +867,52 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
         return 400, {"message": str(e)}
 
     return 204, None
+
+# endregion
+
+# region Spray charts
+
+@router.post('/spray-chart', response=list[GameEventOut])
+def get_spray_chart_points(request: HttpRequest, filters: SprayChartFilters):
+    spray_chart = GameEvents.objects
+
+    if filters.season_id is not None:
+        spray_chart = spray_chart.prefetch_related('game').filter(game__season_id=filters.season_id)
+
+    if filters.game_id is not None:
+        spray_chart = spray_chart.filter(game_id=filters.game_id)
+
+    if filters.team_id is not None:
+
+        spray_chart = spray_chart.filter(team_id=filters.team_id)
+
+    if filters.goalie_id is not None:
+
+        spray_chart = spray_chart.filter(goalie_id=filters.goalie_id)
+
+        if filters.is_goal:
+            spray_chart = spray_chart.filter(shot_type=ShotType.objects.get(name="Goal"))
+        if filters.is_blocked:
+            spray_chart = spray_chart.filter(shot_type=ShotType.objects.get(name="Blocked"))
+
+    if filters.player_id is not None:
+
+        spray_chart = spray_chart.filter(player_id=filters.player_id)
+
+        if filters.is_scoring_chance:
+            spray_chart = spray_chart.filter(is_scoring_chance=True)
+        if filters.is_goal:
+            spray_chart = spray_chart.prefetch_related('shot_type').filter(shot_type__name="Goal")
+        if filters.is_power_play_goal:
+            spray_chart = spray_chart.prefetch_related('shot_type').filter(shot_type__name="Goal", goal_type=GoalType.POWER_PLAY)
+        if filters.is_short_handed_goal:
+            spray_chart = spray_chart.prefetch_related('shot_type').filter(shot_type__name="Goal", goal_type=GoalType.SHORT_HANDED)
+        if filters.is_penalty:
+            spray_chart = spray_chart.prefetch_related('shot_type').filter(shot_type__name="Penalty")
+        if filters.is_turnover:
+            spray_chart = spray_chart.prefetch_related('event_name').filter(event_name__name=EventName.TURNOVER)
+
+    return spray_chart.all()
 
 # endregion
 
