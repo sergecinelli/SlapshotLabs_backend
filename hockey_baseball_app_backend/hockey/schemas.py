@@ -292,6 +292,7 @@ class GameIn(Schema):
     date: datetime.date
     time: datetime.time
     rink_id: int
+    analysis: str | None = None
 
     home_goalies: list[int]
     away_goalies: list[int]
@@ -316,6 +317,7 @@ class GameOut(Schema):
     season_id: int | None = None
     arena_id: int | None = None
     rink_id: int | None = None
+    analysis: str | None = None
 
     game_period_id: int | None = None
 
