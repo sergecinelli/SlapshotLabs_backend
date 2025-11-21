@@ -12,17 +12,19 @@ from django.utils.http import urlsafe_base64_decode
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from .models import CustomUser
-from .schemas import Message, ErrorDictSchema, UserIn, UserEdit, UserOut, SignInSchema, ResetConfirmSchema, ResetRequestSchema
+from .schemas import CSRFTokenSchema, Message, ErrorDictSchema, UserIn, UserEdit, UserOut, SignInSchema, ResetConfirmSchema, ResetRequestSchema
 
 router = Router(tags=["Users"])
 
 User = get_user_model()
 
-@router.post("/csrf")
+@router.post("/csrf", response=CSRFTokenSchema)
 @ensure_csrf_cookie
 @csrf_exempt
 def get_csrf_token(request: HttpRequest):
-    return HttpResponse()
+    from django.middleware.csrf import get_token
+    csrf_token = get_token(request)
+    return CSRFTokenSchema(csrf_token=csrf_token)
 
 @router.post('/signup', response={201: Message, 400: Message})
 def create_user(request: HttpRequest, data: UserIn):

@@ -49,3 +49,7 @@ class ResetConfirmSchema(Schema):
     token: str
     new_password: str
     new_password_confirm: str
+
+class CSRFTokenSchema(Schema):
+    csrf_token: str
+    
