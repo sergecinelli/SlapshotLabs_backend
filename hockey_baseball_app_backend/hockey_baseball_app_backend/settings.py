@@ -75,6 +75,10 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = 'None'
+
 
 # Application definition
 
