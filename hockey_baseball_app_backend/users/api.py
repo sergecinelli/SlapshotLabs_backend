@@ -24,7 +24,7 @@ User = get_user_model()
 def get_csrf_token(request: HttpRequest):
     from django.middleware.csrf import get_token
     csrf_token = get_token(request)
-    return CSRFTokenSchema(csrf_token=csrf_token)
+    return {"csrf_token": csrf_token}
 
 @router.post('/signup', response={201: Message, 400: Message})
 def create_user(request: HttpRequest, data: UserIn):
@@ -58,7 +58,7 @@ def get_user(request: HttpRequest):
 
 @router.patch('/edit', auth=SessionAuth(), response={204: None, 400: Message})
 def edit_user(request: HttpRequest, data: UserEdit):
-    user: CustomUser = request.user
+    user = request.user
 
     if data.email is not None:
         user.email = data.email
