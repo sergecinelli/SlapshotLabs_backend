@@ -4,7 +4,7 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Case, DateField, ExpressionWrapper, UniqueConstraint, When, Value, F
+from django.db.models import Q, Case, DateField, ExpressionWrapper, UniqueConstraint, When, Value, F
 from django.db.models.functions import Concat
 
 from hockey.utils.constants import GOALIE_POSITION_NAME, GameStatus, GoalType, IdName, RinkZone, get_constant_class_int_choices, get_constant_class_str_choices
@@ -166,7 +166,7 @@ class PlayerSeason(models.Model):
     turnovers = models.IntegerField(default=0)
 
     faceoff_win_percents = models.GeneratedField(
-        expression=Case(When(games_played__gt=0, then=((F('faceoffs_won') / F('faceoffs'))* 100)),
+        expression=Case(When(faceoffs__gt=0, then=((F('faceoffs_won') / F('faceoffs'))* 100)),
                         default=Value(0), output_field=models.FloatField()),
         output_field=models.FloatField(),
         db_persist=True,
@@ -241,7 +241,7 @@ class GoalieSeason(models.Model):
     """PPGA field."""
 
     save_percents = models.GeneratedField(
-        expression=Case(When(games_played__gt=0, then=((F('saves') / (F('saves') + F('goals_against'))) * 100)),
+        expression=Case(When(Q(saves__gt=0) | Q(goals_against__gt=0), then=((F('saves') / (F('saves') + F('goals_against'))) * 100)),
                         default=Value(0), output_field=models.FloatField()),
         output_field=models.FloatField(),
         db_persist=True,
@@ -417,8 +417,6 @@ class Game(models.Model):
     away_shots = models.OneToOneField(Shots, related_name='away_game', on_delete=models.RESTRICT)
     away_turnovers = models.OneToOneField(Turnovers, related_name='away_game', on_delete=models.RESTRICT)
 
-    is_deprecated = models.BooleanField(default=False)
-
     def clean(self):
         if self.home_team == self.away_team:
             raise ValidationError("Home team and away team cannot be the same.")
@@ -445,7 +443,7 @@ class Game(models.Model):
         return None
 
     def __str__(self):
-        return f'{("(DEPRECATED) " if self.is_deprecated else "")}"{self.home_team.name}" - "{self.away_team.name}" - {str(self.date)} {str(self.time)}'
+        return f'"{self.home_team.name}" - "{self.away_team.name}" - {str(self.date)} {str(self.time)}'
 
     class Meta:
         db_table = "games"
@@ -462,6 +460,13 @@ class GamePlayer(models.Model):
     penalty_minutes = models.DurationField(default=datetime.timedelta(0))
     turnovers = models.IntegerField(default=0)
     faceoffs = models.IntegerField(default=0)
+    faceoffs_won = models.IntegerField(default=0)
+
+    short_handed_goals = models.IntegerField("SHG", default=0)
+    """SHG field."""
+
+    power_play_goals = models.IntegerField("PPG", default=0)
+    """PPG field."""
 
     points = models.GeneratedField(
         expression=F('goals') + F('assists'),
@@ -480,6 +485,12 @@ class GameGoalie(models.Model):
     goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT)
     goals_against = models.IntegerField(default=0)
     saves = models.IntegerField(default=0)
+
+    short_handed_goals_against = models.IntegerField("SHGA", default=0)
+    """SHGA field."""
+
+    power_play_goals_against = models.IntegerField("PPGA", default=0)
+    """PPGA field."""
 
     shots_against = models.GeneratedField(
         expression=F('goals_against') + F('saves'),
@@ -549,8 +560,6 @@ class GameEvents(models.Model):
 
     note = models.TextField(null=True, blank=True)
     time_length = models.DurationField(null=True, blank=True)
-
-    is_deprecated = models.BooleanField(default=False)
 
     def __str__(self):
         return f'{str(self.game)} - {self.time}'
@@ -630,20 +639,16 @@ class GameEventsAnalysisQueue(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
-    # Only one of the following 2 FKs must be set.
-    game_event = models.ForeignKey(GameEvents, on_delete=models.RESTRICT, null=True)
-    game = models.ForeignKey(Game, on_delete=models.RESTRICT, null=True)
+    payload = models.TextField()
+    status = models.IntegerField(null=True, blank=True)
+    """Status of the game or event in the data analyzer.\n
+    Values are from the `GameSystemStatus` or `GameEventSystemStatus` classes.
+    """
 
     date_time = models.DateTimeField(auto_now=True)
-
-    action = models.IntegerField(null=True, blank=True)
-    """1 - added, 2 - updated, 3 - deleted. Used for the game field"""
 
     error_message = models.TextField(null=True, blank=True)
     """If the analysis failed, this field will be set to the error message."""
 
     class Meta:
         db_table = "game_events_analysis_queue"
-        constraints = [
-            UniqueConstraint(fields=['game_event', 'game', 'action'], name='unique_game_event_game_action'),
-        ]

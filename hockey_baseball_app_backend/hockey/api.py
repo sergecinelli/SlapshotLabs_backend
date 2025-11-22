@@ -18,7 +18,8 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
-from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, EventName, GameStatus, GoalType, get_constant_class_int_choices
+from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, ApiDocTags, EventName, GameEventSystemStatus, GameStatus, GoalType, get_constant_class_int_choices
+from hockey.utils.event_analysis_serializer import serialize_game, serialize_game_event
 
 from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameSprayChartFilters, GameTypeOut, GameTypeRecordOut, GoalieBaseOut, GoalieSeasonOut,
@@ -54,6 +55,10 @@ def get_goalies(request: HttpRequest, team_id: int | None = None):
     for goalie in goalies:
         goalies_out.append(form_goalie_out(goalie, current_season))
     return goalies_out
+
+@router.post("/goalie/seasons", response=list[GoalieSeasonOut])
+def get_goalie_seasons(request: HttpRequest, data: GoalieSeasonsGet):
+    return GoalieSeason.objects.filter(goalie_id=data.goalie_id, season_id__in=data.season_ids)
 
 @router.get('/goalie/{goalie_id}', response=GoalieOut)
 def get_goalie(request: HttpRequest, goalie_id: int):
@@ -116,16 +121,12 @@ def delete_goalie(request: HttpRequest, goalie_id: int):
         return 200, {"message": "Archived."}
     return 200, {"message": "Deleted."}
 
-@router.post("/goalie/seasons", response=list[GoalieSeasonOut])
-def get_goalie_seasons(request: HttpRequest, data: GoalieSeasonsGet):
-    return GoalieSeason.objects.filter(goalie_id=data.goalie_id, season_id__in=data.season_ids)
-
 @router.post("/goalie/{goalie_id}/spray-chart", response={200: list[GameEventOut], 400: Message})
 def get_goalie_spray_chart(request: HttpRequest, goalie_id: int, filters: GoalieSprayChartFilters):
     if (filters.season_id is not None) and (filters.game_id is not None):
         return 400, {"message": "season_id and game_id cannot be provided at the same time."}
     
-    events = GameEvents.objects.filter(goalie_id=goalie_id).exclude(is_deprecated=True)
+    events = GameEvents.objects.filter(goalie_id=goalie_id)
 
     if filters.season_id is not None:
         events = events.prefetch_related('game').filter(game__season_id=filters.season_id)
@@ -214,7 +215,7 @@ def get_player_spray_chart(request: HttpRequest, player_id: int, filters: Player
     if (filters.season_id is not None) and (filters.game_id is not None):
         return 400, {"message": "season_id and game_id cannot be provided at the same time."}
 
-    events = GameEvents.objects.filter(player_id=player_id).exclude(is_deprecated=True)
+    events = GameEvents.objects.filter(player_id=player_id)
 
     if filters.season_id is not None:
         events = events.prefetch_related('game').filter(game__season_id=filters.season_id)
@@ -403,7 +404,7 @@ def get_game_periods(request: HttpRequest):
 
 @router.get('/game/list', response=list[GameOut])
 def get_games(request: HttpRequest, on_now: bool = False):
-    games = Game.objects.exclude(is_deprecated=True).select_related('rink', 'game_type_name')
+    games = Game.objects.select_related('rink', 'game_type_name')
     if on_now:
         games = games.filter(status=2)
     return games.order_by('-date').all()
@@ -411,7 +412,8 @@ def get_games(request: HttpRequest, on_now: bool = False):
 @router.get('/game/list/banner', response=list[GameBannerOut], description="Returns a list of current games for the banner.")
 def get_games_banner(request: HttpRequest):
     now = datetime.datetime.now(datetime.timezone.utc)
-    games = Game.objects.exclude(is_deprecated=True).select_related('rink', 'game_type_name', 'game_period', 'home_team', 'away_team').\
+    games = Game.objects.\
+        select_related('rink', 'game_type_name', 'game_period', 'home_team', 'away_team').\
         filter(Q(status=2) | (Q(status=1) & Q(date__gte=now.date()) & Q(date__lte=(now + datetime.timedelta(days=1)).date()))).order_by('date')
     games_out = []
     for game in games:
@@ -425,8 +427,8 @@ def get_games_banner(request: HttpRequest):
 
 @router.get('/game/list/dashboard', response=GameDashboardOut)
 def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | None = None):
-    upcoming_games_qs = Game.objects.exclude(is_deprecated=True).filter(status=1).select_related('rink', 'game_type_name').order_by('date')
-    previous_games_qs = Game.objects.exclude(is_deprecated=True).filter(status=3).select_related('rink', 'game_type_name').order_by('-date')
+    upcoming_games_qs = Game.objects.filter(status=1).select_related('rink', 'game_type_name').order_by('date')
+    previous_games_qs = Game.objects.filter(status=3).select_related('rink', 'game_type_name').order_by('-date')
 
     if team_id is not None:
         upcoming_games_qs = upcoming_games_qs.filter(Q(home_team_id=team_id) | Q(away_team_id=team_id))
@@ -520,8 +522,10 @@ def add_game(request: HttpRequest, data: GameIn):
             game.away_players.set(data.away_players)
             game.full_clean()
             game.save()
-            # if data.status == 3:
-            #     GameEventsAnalysisQueue.objects.create(game=game, action=1)
+
+            if data.status == GameStatus.GAME_OVER.id:
+                GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.NEW)
+
     except ValidationError as e:
         return 400, {"message": str(e)}
     except IntegrityError as e:
@@ -539,27 +543,17 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
         return 400, {"message": "If game type has names, game type name must be provided."}
     try:
         with transaction.atomic(using='hockey'):
-            if data_status is not None and game.status != data_status and data_status == 3:
+
+            if game.status != data_status and data_status == GameStatus.GAME_OVER.id:
                 # Game has finished, add its data to statistics.
-                GameEventsAnalysisQueue.objects.create(game=game, action=1)
-            elif data_status is not None and game.status == 3 and data_status != 3:
+                GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.NEW)
+            elif data_status is not None and game.status == GameStatus.GAME_OVER.id and data_status != GameStatus.GAME_OVER.id:
                 # Game finish has been undone, remove its data from statistics.
-                GameEventsAnalysisQueue.objects.create(game=game, action=2)
-            elif data_status is not None and game.status == data_status and data_status == 3:
-                # Game has been updated after finishing, re-apply its data to statistics.
-                GameEventsAnalysisQueue.objects.create(game=game, action=3)
-                GameEventsAnalysisQueue.objects.create(game=game, action=1)
-
-            if (data.get('home_team_goalie_id') is not None or data.get('away_team_goalie_id') is not None) and game.status > 1:
-                transaction.set_rollback(True, using='hockey')
-                return 400, {"message": f"Goalies can only be set here before the game starts. After the game starts, goalies can only be added by the '{EventName.GOALIE_CHANGE}' event."}
-
-            if data.get('home_team_goalie_id') is not None:
-                GameGoalie.objects.filter(game=game, goalie__team=game.home_team).delete()
-                GameGoalie.objects.create(game=game, goalie_id=data.get('home_team_goalie_id'), start_period_id=1, start_time=datetime.time(0, 0, 0))
-            if data.get('away_team_goalie_id') is not None:
-                GameGoalie.objects.filter(game=game, goalie__team=game.away_team).delete()
-                GameGoalie.objects.create(game=game, goalie_id=data.get('away_team_goalie_id'), start_period_id=1, start_time=datetime.time(0, 0, 0))
+                GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.DEPRECATED)
+            elif game.status == GameStatus.GAME_OVER.id and data_status in [GameStatus.GAME_OVER.id, None] and len(data) > 0:
+                # If game has been modified after finishing, re-apply its data to statistics.
+                GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.DEPRECATED)
+                GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.NEW)
 
             if data.get('date') is not None and game.date != data.get('date'):
                 game.season = get_current_season(data.get('date'))
@@ -584,9 +578,9 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
 def delete_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
     with transaction.atomic(using='hockey'):
-        GameEventsAnalysisQueue.objects.create(game=game, action=3)
-        game.is_deprecated = True
-        game.save()
+        if game.status == GameStatus.GAME_OVER.id:
+            GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.DEPRECATED)
+        game.delete()
     return 204, None
 
 @router.get("/game/defensive-zone-exit/{defensive_zone_exit_id}", response=DefensiveZoneExitOut)
@@ -645,16 +639,16 @@ def get_game_live_data(request: HttpRequest, game_id: int):
                            away_shots=game.away_shots,
                            home_turnovers=game.home_turnovers,
                            away_turnovers=game.away_turnovers,
-                           events=game.gameevents_set.exclude(is_deprecated=True).order_by("period", "-time").all())
+                           events=game.gameevents_set.order_by("period__order", "-time").all())
 
 @router.get('/game/{game_id}/events', response=list[GameEventOut])
 def get_game_events(request: HttpRequest, game_id: int):
-    game_events = GameEvents.objects.filter(game_id=game_id).exclude(is_deprecated=True).order_by("period", "-time").all()
+    game_events = GameEvents.objects.filter(game_id=game_id).order_by("period__order", "-time").all()
     return game_events
 
 @router.post('/game/{game_id}/spray-chart', response=list[GameEventOut])
 def get_game_spray_chart(request: HttpRequest, game_id: int, filters: GameSprayChartFilters):
-    events = GameEvents.objects.filter(game_id=game_id).exclude(is_deprecated=True)
+    events = GameEvents.objects.filter(game_id=game_id)
     if filters.event_name is not None:
         events = events.prefetch_related('event_name').filter(event_name__name=filters.event_name)
     return events.all()
@@ -726,7 +720,7 @@ def get_shot_types(request: HttpRequest):
 
 @router.get('/game-event/{game_event_id}', response=GameEventOut)
 def get_game_event(request: HttpRequest, game_event_id: int):
-    game_event = get_object_or_404(GameEvents.objects, id=game_event_id)
+    game_event = get_object_or_404(GameEvents, id=game_event_id)
     return game_event
 
 @router.post('/game-event', response={200: ObjectId, 400: Message})
@@ -744,6 +738,13 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
 
             data_new = data.dict()
 
+            game: Game = get_object_or_404(Game, id=data.game_id)
+
+            if game.status == GameStatus.GAME_OVER.id:
+                old_game_stats = serialize_game(game)
+            else:
+                old_game_stats = None
+
             game_event = GameEvents.objects.create(**data_new)
 
             if event_name is None:
@@ -752,20 +753,41 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
             if game_event.shot_type is not None and event_name.name != EventName.SHOT:
                 raise ValueError(f"Shot type is only allowed for '{EventName.SHOT}' events.")
 
-            game: Game = game_event.game
+            affect_stats_level = None
 
             if event_name.name == EventName.SHOT:
                 error = update_game_shots_from_event(game, data=data, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
+                elif game_event.shot_type.name.lower() == 'goal':
+                    affect_stats_level = 'game'
+                else:
+                    affect_stats_level = 'game_event'
             elif event_name.name == EventName.TURNOVER:
                 error = update_game_turnovers_from_event(game, data=data, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
+                else:
+                    affect_stats_level = 'game_event'
             elif event_name.name == EventName.FACEOFF:
                 error = update_game_faceoffs_from_event(game, data=data, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
+                else:
+                    affect_stats_level = 'game_event'
+            elif event_name.name == EventName.PENALTY:
+                affect_stats_level = 'game_event'
+            elif event_name.name == EventName.GOALIE_CHANGE:
+                affect_stats_level = 'game'
+
+            if game.status == GameStatus.GAME_OVER.id:
+                if affect_stats_level == 'game':
+                    if old_game_stats is None:
+                        raise Exception("Game stats are not available.")
+                    GameEventsAnalysisQueue.objects.create(payload=old_game_stats, status=GameEventSystemStatus.DEPRECATED)
+                    GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.NEW)
+                elif affect_stats_level == 'game_event':
+                    GameEventsAnalysisQueue.objects.create(payload=serialize_game_event(game_event), status=GameEventSystemStatus.NEW)
 
     except ValueError as e:
         return 400, {"message": str(e)}
@@ -782,30 +804,42 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
     try:
         with transaction.atomic(using='hockey'):
 
-            # Create the copy with deprecation.
+            if game.status == GameStatus.GAME_OVER.id:
+                old_game_stats = serialize_game(game)
+                old_game_event_stats = serialize_game_event(game_event)
+            else:
+                old_game_stats = None
+                old_game_event_stats = None
 
-            # game_event.pk = None
-            # game_event._state.adding = True
-            # game_event.is_deprecated = True
-            # game_event.save()
+            affect_stats_level = None
 
             # Undo old shot/turnover data.
             if game_event.event_name.name == EventName.SHOT:
                 error = update_game_shots_from_event(game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
+                elif game_event.shot_type.name.lower() == 'goal':
+                    affect_stats_level = 'game'
+                else:
+                    affect_stats_level = 'game_event'
             elif game_event.event_name.name == EventName.TURNOVER:
                 error = update_game_turnovers_from_event(game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
+                else:
+                    affect_stats_level = 'game_event'
             elif game_event.event_name.name == EventName.FACEOFF:
                 error = update_game_faceoffs_from_event(game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
+                else:
+                    affect_stats_level = 'game_event'
+            elif game_event.event_name.name == EventName.PENALTY:
+                affect_stats_level = 'game_event'
+            elif game_event.event_name.name == EventName.GOALIE_CHANGE:
+                affect_stats_level = 'game'
 
             game_event.save()
-
-            # GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
 
             # Update the original event.
 
@@ -824,16 +858,39 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
                 error = update_game_shots_from_event(game, event=game_event, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
+                elif game_event.shot_type.name.lower() == 'goal':
+                    affect_stats_level = 'game'
+                elif affect_stats_level is None:
+                    affect_stats_level = 'game_event'
             elif game_event.event_name.name == EventName.TURNOVER:
                 error = update_game_turnovers_from_event(game, event=game_event, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
+                elif affect_stats_level is None:
+                    affect_stats_level = 'game_event'
             elif game_event.event_name.name == EventName.FACEOFF:
                 error = update_game_faceoffs_from_event(game, event=game_event, is_deleted=False)
                 if error is not None:
                     raise ValueError(error)
+                elif affect_stats_level is None:
+                    affect_stats_level = 'game_event'
+            elif game_event.event_name.name == EventName.PENALTY:
+                if affect_stats_level is None:
+                    affect_stats_level = 'game_event'
+            elif game_event.event_name.name == EventName.GOALIE_CHANGE:
+                affect_stats_level = 'game'
 
-            # GameEventsAnalysisQueue.objects.create(game_event=game_event, action=1)
+            if game.status == GameStatus.GAME_OVER.id:
+                if affect_stats_level == 'game':
+                    if old_game_stats is None:
+                        raise Exception("Game stats are not available.")
+                    GameEventsAnalysisQueue.objects.create(payload=old_game_stats, status=GameEventSystemStatus.DEPRECATED)
+                    GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.NEW)
+                elif affect_stats_level == 'game_event':
+                    if old_game_event_stats is None:
+                        raise Exception("Game event stats are not available.")
+                    GameEventsAnalysisQueue.objects.create(payload=old_game_event_stats, status=GameEventSystemStatus.DEPRECATED)
+                    GameEventsAnalysisQueue.objects.create(payload=serialize_game_event(game_event), status=GameEventSystemStatus.NEW)
 
     except ValueError as e:
         return 400, {"message": str(e)}
@@ -843,25 +900,57 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
 @router.delete("/game-event/{game_event_id}", response={204: None})
 def delete_game_event(request: HttpRequest, game_event_id: int):
     game_event = get_object_or_404(GameEvents, id=game_event_id)
+    game: Game = game_event.game
+
+    if game.status == GameStatus.GAME_OVER.id:
+        old_game_stats = serialize_game(game)
+        old_game_event_stats = serialize_game_event(game_event)
+    else:
+        old_game_stats = None
+        old_game_event_stats = None
+
     try:
         with transaction.atomic(using='hockey'):
+
+            affect_stats_level = None
 
             if game_event.event_name.name == EventName.SHOT:
                 error = update_game_shots_from_event(game_event.game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
+                elif game_event.shot_type.name.lower() == 'goal':
+                    affect_stats_level = 'game'
+                else:
+                    affect_stats_level = 'game_event'
             elif game_event.event_name.name == EventName.TURNOVER:
                 error = update_game_turnovers_from_event(game_event.game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
+                else:
+                    affect_stats_level = 'game_event'
             elif game_event.event_name.name == EventName.FACEOFF:
                 error = update_game_faceoffs_from_event(game_event.game, event=game_event, is_deleted=True)
                 if error is not None:
                     raise ValueError(error)
+                else:
+                    affect_stats_level = 'game_event'
+            elif game_event.event_name.name == EventName.PENALTY:
+                affect_stats_level = 'game_event'
+            elif game_event.event_name.name == EventName.GOALIE_CHANGE:
+                affect_stats_level = 'game'
 
             game_event.delete()
 
-            # GameEventsAnalysisQueue.objects.create(game_event=game_event, action=3)
+            if game_event.game.status == GameStatus.GAME_OVER.id:
+                if affect_stats_level == 'game':
+                    if old_game_stats is None:
+                        raise Exception("Game stats are not available.")
+                    GameEventsAnalysisQueue.objects.create(payload=old_game_stats, status=GameEventSystemStatus.DEPRECATED)
+                    GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.NEW)
+                elif affect_stats_level == 'game_event':
+                    if old_game_event_stats is None:
+                        raise Exception("Game event stats are not available.")
+                    GameEventsAnalysisQueue.objects.create(payload=old_game_event_stats, status=GameEventSystemStatus.DEPRECATED)
 
     except ValueError as e:
         return 400, {"message": str(e)}
