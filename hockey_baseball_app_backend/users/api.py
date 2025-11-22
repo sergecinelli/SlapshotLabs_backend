@@ -9,7 +9,7 @@ from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError
 from django.utils.http import urlsafe_base64_decode
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from .models import CustomUser
 from .schemas import CSRFTokenSchema, Message, ErrorDictSchema, UserIn, UserEdit, UserOut, SignInSchema, ResetConfirmSchema, ResetRequestSchema
@@ -18,13 +18,30 @@ router = Router(tags=["Users"])
 
 User = get_user_model()
 
-@router.post("/csrf", response=CSRFTokenSchema)
-@ensure_csrf_cookie
+@router.post("/csrf")
 @csrf_exempt
 def get_csrf_token(request: HttpRequest):
     from django.middleware.csrf import get_token
+    import json
     csrf_token = get_token(request)
-    return {"csrf_token": csrf_token}
+    
+    # Create JsonResponse and set CSRF cookie manually
+    response = JsonResponse({"csrf_token": csrf_token})
+    
+    # Ensure CSRF cookie is set with proper settings for cross-domain
+    from django.conf import settings
+    response.set_cookie(
+        'csrftoken',
+        csrf_token,
+        max_age=settings.CSRF_COOKIE_AGE if hasattr(settings, 'CSRF_COOKIE_AGE') else 31449600,
+        domain=settings.CSRF_COOKIE_DOMAIN if hasattr(settings, 'CSRF_COOKIE_DOMAIN') and settings.CSRF_COOKIE_DOMAIN else None,
+        path=settings.CSRF_COOKIE_PATH if hasattr(settings, 'CSRF_COOKIE_PATH') else '/',
+        secure=settings.CSRF_COOKIE_SECURE if hasattr(settings, 'CSRF_COOKIE_SECURE') else False,
+        httponly=settings.CSRF_COOKIE_HTTPONLY if hasattr(settings, 'CSRF_COOKIE_HTTPONLY') else False,
+        samesite=settings.CSRF_COOKIE_SAMESITE if hasattr(settings, 'CSRF_COOKIE_SAMESITE') else 'Lax'
+    )
+    
+    return response
 
 @router.post('/signup', response={201: Message, 400: Message})
 def create_user(request: HttpRequest, data: UserIn):
