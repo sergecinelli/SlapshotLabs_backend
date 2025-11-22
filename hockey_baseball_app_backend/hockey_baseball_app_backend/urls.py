@@ -19,29 +19,14 @@ from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
-from django.middleware.csrf import get_token
 from .api import api
 
 def health_check(request):
     """Health check endpoint for AWS App Runner"""
     return JsonResponse({"status": "healthy", "service": "hockey-app-backend"})
 
-@csrf_exempt
-@ensure_csrf_cookie
-def get_csrf_token(request):
-    """CSRF token endpoint - returns token in JSON and sets cookie"""
-    csrf_token = get_token(request)
-    if not csrf_token:
-        # Generate new token if not available
-        from django.middleware.csrf import _get_new_csrf_token
-        csrf_token = _get_new_csrf_token()
-    response = JsonResponse({"csrf_token": csrf_token})
-    return response
-
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path("api/users/csrf", get_csrf_token, name="csrf_token"),  # CSRF endpoint before API router
     path("api/", api.urls),
     path("health/", health_check, name="health_check"),
 ]
