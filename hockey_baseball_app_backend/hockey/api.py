@@ -18,34 +18,43 @@ from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
 
-from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, ApiDocTags, EventName, GameEventSystemStatus, GameStatus, GoalType, get_constant_class_int_choices
+from hockey.utils.constants import (GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, ApiDocTags,
+                                    EventName, GameEventSystemStatus, GameStatus, GoalType, get_constant_class_int_choices,
+                                    ApiDocTags)
 from hockey.utils.event_analysis_serializer import serialize_game, serialize_game_event
 
-from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut, GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
-                      GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut, GameSprayChartFilters, GameTypeOut, GameTypeRecordOut, GoalieBaseOut, GoalieSeasonOut,
-                      GoalieSeasonsGet, GoalieSprayChartFilters, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn, HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn, OffensiveZoneEntryOut, PlayerBaseOut, PlayerPositionOut, GoalieIn,
-                      GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, SeasonIn, SeasonOut, ShotsIn, ShotsOut, SprayChartFilters,
-                      TeamIn, TeamOut, TeamSeasonIn, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
+from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut,
+                     GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
+                      GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut,
+                      GameSprayChartFilters, GameTypeOut, GameTypeRecordOut, GoalieBaseOut, GoalieSeasonOut,
+                      GoalieSeasonsGet, GoalieSprayChartFilters, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn,
+                      HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn,
+                      OffensiveZoneEntryOut, PlayerBaseOut, PlayerPositionOut, GoalieIn,
+                      GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, SeasonIn,
+                      SeasonOut, ShotsIn, ShotsOut, SprayChartFilters,
+                      TeamIn, TeamOut, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
 from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, Highlight, HighlightReel, OffensiveZoneEntry, Player,
-                     PlayerPosition, PlayerSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers, VideoLibrary)
+                     PlayerPosition, PlayerSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName,
+                     Turnovers, VideoLibrary)
 from .utils import api_response_templates as resp
-from .utils.db_utils import (create_highlight, form_game_goalie_out, form_game_dashboard_game_out, form_game_player_out, form_goalie_out, form_player_out, get_current_season,
+from .utils.db_utils import (create_highlight, form_game_goalie_out, form_game_dashboard_game_out, form_game_player_out, form_goalie_out,
+                             form_player_out, get_current_season,
                              get_game_current_goalies, get_no_goalie, is_no_goalie_dict, is_no_goalie_object, update_game_faceoffs_from_event,
                              update_game_shots_from_event, update_game_turnovers_from_event)
 
-router = Router(tags=["Hockey"])
+router = Router()
 
 User = get_user_model()
 
 # region Goalie, player
 
-@router.get('/player-position/list', response=list[PlayerPositionOut])
+@router.get('/player-position/list', response=list[PlayerPositionOut], tags=[ApiDocTags.PLAYER])
 def get_player_positions(request: HttpRequest):
     positions = PlayerPosition.objects.exclude(name=GOALIE_POSITION_NAME).all()
     return positions
 
-@router.get('/goalie/list', response=list[GoalieOut])
+@router.get('/goalie/list', response=list[GoalieOut], tags=[ApiDocTags.PLAYER])
 def get_goalies(request: HttpRequest, team_id: int | None = None):
     current_season = get_current_season()
     goalies_out: list[GoalieOut] = []
@@ -56,22 +65,22 @@ def get_goalies(request: HttpRequest, team_id: int | None = None):
         goalies_out.append(form_goalie_out(goalie, current_season))
     return goalies_out
 
-@router.post("/goalie/seasons", response=list[GoalieSeasonOut])
+@router.post("/goalie/seasons", response=list[GoalieSeasonOut], tags=[ApiDocTags.PLAYER, ApiDocTags.STATS])
 def get_goalie_seasons(request: HttpRequest, data: GoalieSeasonsGet):
     return GoalieSeason.objects.filter(goalie_id=data.goalie_id, season_id__in=data.season_ids)
 
-@router.get('/goalie/{goalie_id}', response=GoalieOut)
+@router.get('/goalie/{goalie_id}', response=GoalieOut, tags=[ApiDocTags.PLAYER])
 def get_goalie(request: HttpRequest, goalie_id: int):
     goalie = get_object_or_404(Goalie, pk=goalie_id)
     current_season = get_current_season()
     return form_goalie_out(goalie, current_season)
 
-@router.get('/goalie/{goalie_id}/photo', response=bytes)
+@router.get('/goalie/{goalie_id}/photo', response=bytes, tags=[ApiDocTags.PLAYER])
 def get_goalie_photo(request: HttpRequest, goalie_id: int):
     goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
     return FileResponse(goalie.photo.open())
 
-@router.post('/goalie', response={200: ObjectId, 400: Message, 503: Message})
+@router.post('/goalie', response={200: ObjectId, 400: Message, 503: Message}, tags=[ApiDocTags.PLAYER])
 def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] = None):
     if is_no_goalie_object(data):
         return 400, {"message": "This goalie is used in case of no goalie in net, so it cannot be added."}
@@ -85,7 +94,7 @@ def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] =
         return resp.entry_already_exists("Goalie", str(e))
     return {"id": goalie.id}
 
-@router.patch("/goalie/{goalie_id}", response={204: None, 400: Message, 403: Message})
+@router.patch("/goalie/{goalie_id}", response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.PLAYER])
 def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn], photo: File[UploadedFile] = None):
     goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
     if is_no_goalie_object(goalie):
@@ -108,7 +117,7 @@ def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn
         return resp.entry_already_exists("Goalie")
     return 204, None
 
-@router.delete("/goalie/{goalie_id}", response={200: Message, 403: Message})
+@router.delete("/goalie/{goalie_id}", response={200: Message, 403: Message}, tags=[ApiDocTags.PLAYER])
 def delete_goalie(request: HttpRequest, goalie_id: int):
     goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
     if is_no_goalie_object(goalie):
@@ -121,7 +130,7 @@ def delete_goalie(request: HttpRequest, goalie_id: int):
         return 200, {"message": "Archived."}
     return 200, {"message": "Deleted."}
 
-@router.post("/goalie/{goalie_id}/spray-chart", response={200: list[GameEventOut], 400: Message})
+@router.post("/goalie/{goalie_id}/spray-chart", response={200: list[GameEventOut], 400: Message}, tags=[ApiDocTags.PLAYER, ApiDocTags.SPRAY_CHART])
 def get_goalie_spray_chart(request: HttpRequest, goalie_id: int, filters: GoalieSprayChartFilters):
     if (filters.season_id is not None) and (filters.game_id is not None):
         return 400, {"message": "season_id and game_id cannot be provided at the same time."}
@@ -138,7 +147,7 @@ def get_goalie_spray_chart(request: HttpRequest, goalie_id: int, filters: Goalie
 
     return events.all()
 
-@router.get('/player/list', response=list[PlayerOut])
+@router.get('/player/list', response=list[PlayerOut], tags=[ApiDocTags.PLAYER])
 def get_players(request: HttpRequest, team_id: int | None = None):
     current_season = get_current_season()
     players_out: list[PlayerOut] = []
@@ -149,18 +158,18 @@ def get_players(request: HttpRequest, team_id: int | None = None):
         players_out.append(form_player_out(player, current_season))
     return players_out
 
-@router.get('/player/{player_id}', response=PlayerOut)
+@router.get('/player/{player_id}', response=PlayerOut, tags=[ApiDocTags.PLAYER])
 def get_player(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
     current_season = get_current_season()
     return form_player_out(player, current_season)
 
-@router.get('/player/{player_id}/photo', response=bytes)
+@router.get('/player/{player_id}/photo', response=bytes, tags=[ApiDocTags.PLAYER])
 def get_player_photo(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
     return FileResponse(player.photo.open())
 
-@router.post('/player', response={200: ObjectId, 400: Message})
+@router.post('/player', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.PLAYER])
 def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] = None):
     try:
         if data.position_id == PlayerPosition.objects.get(name=GOALIE_POSITION_NAME).id or is_no_goalie_object(data):
@@ -172,7 +181,7 @@ def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] =
         return resp.entry_already_exists("Player", str(e))
     return {"id": player.id}
 
-@router.patch("/player/{player_id}", response={204: None, 400: Message})
+@router.patch("/player/{player_id}", response={204: None, 400: Message}, tags=[ApiDocTags.PLAYER])
 def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn], photo: File[UploadedFile] = None):
     if data.get('position_id') == PlayerPosition.objects.get(name=GOALIE_POSITION_NAME).id:
         return 400, {"message": "Goalies are not updated through this endpoint."}
@@ -195,7 +204,7 @@ def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn
         return resp.entry_already_exists("Player")
     return 204, None
 
-@router.delete("/player/{player_id}", response={200: Message, 403: Message})
+@router.delete("/player/{player_id}", response={200: Message, 403: Message}, tags=[ApiDocTags.PLAYER])
 def delete_player(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
     try:
@@ -206,11 +215,11 @@ def delete_player(request: HttpRequest, player_id: int):
         return 200, {"message": "Archived."}
     return 200, {"message": "Deleted."}
 
-@router.post("/player/seasons", response=list[PlayerSeasonOut])
+@router.post("/player/seasons", response=list[PlayerSeasonOut], tags=[ApiDocTags.PLAYER, ApiDocTags.STATS])
 def get_player_seasons(request: HttpRequest, data: PlayerSeasonsGet):
     return PlayerSeason.objects.filter(player_id=data.player_id, season_id__in=data.season_ids)
 
-@router.post("/player/{player_id}/spray-chart", response={200: list[GameEventOut], 400: Message})
+@router.post("/player/{player_id}/spray-chart", response={200: list[GameEventOut], 400: Message}, tags=[ApiDocTags.PLAYER, ApiDocTags.SPRAY_CHART])
 def get_player_spray_chart(request: HttpRequest, player_id: int, filters: PlayerSprayChartFilters):
     if (filters.season_id is not None) and (filters.game_id is not None):
         return 400, {"message": "season_id and game_id cannot be provided at the same time."}
@@ -237,32 +246,32 @@ def get_player_spray_chart(request: HttpRequest, player_id: int, filters: Player
 
 # region Team, season
 
-@router.get('/division/list', response=list[ObjectIdName])
+@router.get('/division/list', response=list[ObjectIdName], tags=[ApiDocTags.TEAM])
 def get_divisions(request: HttpRequest):
     divisions = Division.objects.all()
     return divisions
 
-@router.get('/team-level/list', response=list[ObjectIdName])
+@router.get('/team-level/list', response=list[ObjectIdName], tags=[ApiDocTags.TEAM])
 def get_team_levels(request: HttpRequest):
     levels = TeamLevel.objects.all()
     return levels
 
-@router.get('/team/list', response=list[TeamOut])
+@router.get('/team/list', response=list[TeamOut], tags=[ApiDocTags.TEAM])
 def get_teams(request: HttpRequest):
     teams = Team.objects.filter(is_archived=False)
     return teams
 
-@router.get('/team/{team_id}', response=TeamOut)
+@router.get('/team/{team_id}', response=TeamOut, tags=[ApiDocTags.TEAM])
 def get_team(request: HttpRequest, team_id: int):
     team = get_object_or_404(Team, id=team_id)
     return team
 
-@router.get('/team/{team_id}/logo', response=bytes)
+@router.get('/team/{team_id}/logo', response=bytes, tags=[ApiDocTags.TEAM])
 def get_team_logo(request: HttpRequest, team_id: int):
     team = get_object_or_404(Team, id=team_id)
     return FileResponse(team.logo.open())
 
-@router.post('/team', response={200: ObjectId, 400: Message})
+@router.post('/team', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.TEAM])
 def add_team(request: HttpRequest, data: TeamIn, logo: File[UploadedFile] = None):
     try:
         with transaction.atomic(using='hockey'):
@@ -274,7 +283,7 @@ def add_team(request: HttpRequest, data: TeamIn, logo: File[UploadedFile] = None
         return resp.entry_already_exists("Team")
     return {"id": team.id}
 
-@router.patch("/team/{team_id}", response={204: None, 400: Message})
+@router.patch("/team/{team_id}", response={204: None, 400: Message}, tags=[ApiDocTags.TEAM])
 def update_team(request: HttpRequest, team_id: int, data: PatchDict[TeamIn], logo: File[UploadedFile] = None):
     team = get_object_or_404(Team, id=team_id)
     for attr, value in data.items():
@@ -287,7 +296,7 @@ def update_team(request: HttpRequest, team_id: int, data: PatchDict[TeamIn], log
         return resp.entry_already_exists("Team")
     return 204, None
 
-@router.delete("/team/{team_id}", response={200: Message})
+@router.delete("/team/{team_id}", response={200: Message}, tags=[ApiDocTags.TEAM])
 def delete_team(request: HttpRequest, team_id: int):
     team = get_object_or_404(Team, id=team_id)
     try:
@@ -300,17 +309,17 @@ def delete_team(request: HttpRequest, team_id: int):
         return 200, {"message": "Archived."}
     return 200, {"message": "Deleted."}
 
-@router.get('/season/list', response=list[SeasonOut])
+@router.get('/season/list', response=list[SeasonOut], tags=[ApiDocTags.TEAM])
 def get_seasons(request: HttpRequest):
     seasons = Season.objects.all()
     return seasons
 
-@router.get('/season/{season_id}', response=SeasonOut)
+@router.get('/season/{season_id}', response=SeasonOut, tags=[ApiDocTags.TEAM])
 def get_season(request: HttpRequest, season_id: int):
     season = get_object_or_404(Season, id=season_id)
     return season
 
-@router.post('/season', response={200: ObjectId, 400: Message})
+@router.post('/season', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.TEAM])
 def add_season(request: HttpRequest, data: SeasonIn):
     try:
         if not re.match(r'^\d{4} / \d{4}$', data.name):
@@ -320,7 +329,7 @@ def add_season(request: HttpRequest, data: SeasonIn):
         return resp.entry_already_exists("Season", str(e))
     return {"id": season.id}
 
-@router.patch("/season/{season_id}", response={204: None})
+@router.patch("/season/{season_id}", response={204: None}, tags=[ApiDocTags.TEAM])
 def update_season(request: HttpRequest, season_id: int, data: PatchDict[SeasonIn]):
     if not re.match(r'^\d{4} / \d{4}$', data.name):
         return 400, {"message": "Season name must be in the format 'YYYY / YYYY'."}
@@ -330,14 +339,14 @@ def update_season(request: HttpRequest, season_id: int, data: PatchDict[SeasonIn
     season.save()
     return 204, None
 
-@router.delete("/season/{season_id}", response={204: None})
+@router.delete("/season/{season_id}", response={204: None}, tags=[ApiDocTags.TEAM])
 def delete_season(request: HttpRequest, season_id: int):
     season = get_object_or_404(Season, id=season_id)
     season.delete()
     return 204, None
 
 @router.get('/team-season/list', response=list[TeamSeasonOut],
-            description="Returns the last `limit` team season results for the given team, or for all teams if no team is specified.")
+            description="Returns the last `limit` team season results for the given team, or for all teams if no team is specified.", tags=[ApiDocTags.TEAM, ApiDocTags.STATS])
 def get_team_seasons(request: HttpRequest, team_id: int | None = None, limit: int = 2):
     team_seasons = TeamSeason.objects.exclude(season__start_date__gt=datetime.datetime.now(datetime.timezone.utc).date())
     if team_id is not None:
@@ -345,48 +354,26 @@ def get_team_seasons(request: HttpRequest, team_id: int | None = None, limit: in
     team_seasons = team_seasons.order_by('-season__start_date')[:limit]
     return team_seasons
 
-@router.get('/team-season/{team_season_id}', response=TeamSeasonOut)
+@router.get('/team-season/{team_season_id}', response=TeamSeasonOut, tags=[ApiDocTags.TEAM, ApiDocTags.STATS])
 def get_team_season(request: HttpRequest, team_season_id: int):
     team_season = get_object_or_404(TeamSeason, id=team_season_id)
     return team_season
-
-@router.post('/team-season', response=ObjectId)
-def add_team_season(request: HttpRequest, data: TeamSeasonIn):
-    try:
-        team_season = TeamSeason.objects.create(**data.dict())
-    except IntegrityError as e:
-        return resp.entry_already_exists("Team season", str(e))
-    return {"id": team_season.id}
-
-@router.patch("/team-season/{team_season_id}", response={204: None})
-def update_team_season(request: HttpRequest, team_season_id: int, data: PatchDict[TeamSeasonIn]):
-    team_season = get_object_or_404(TeamSeason, id=team_season_id)
-    for attr, value in data.items():
-        setattr(team_season, attr, value)
-    team_season.save()
-    return 204, None
-
-@router.delete("/team-season/{team_season_id}", response={204: None})
-def delete_team_season(request: HttpRequest, team_season_id: int):
-    team_season = get_object_or_404(TeamSeason, id=team_season_id)
-    team_season.delete()
-    return 204, None
 
 # endregion
 
 # region Game
 
-@router.get('/arena/list', response=list[ArenaOut])
+@router.get('/arena/list', response=list[ArenaOut], tags=[ApiDocTags.GAME])
 def get_arenas(request: HttpRequest):
     arenas = Arena.objects.all()
     return arenas
 
-@router.get('/arena-rink/list', response=list[ArenaRinkOut])
+@router.get('/arena-rink/list', response=list[ArenaRinkOut], tags=[ApiDocTags.GAME])
 def get_arena_rinks(request: HttpRequest):
     arena_rinks = ArenaRink.objects.all()
     return arena_rinks
 
-@router.get('/game-type/list', response=list[GameTypeOut])
+@router.get('/game-type/list', response=list[GameTypeOut], tags=[ApiDocTags.GAME])
 def get_game_types(request: HttpRequest):
     game_types = GameType.objects.all()
     game_types_out = []
@@ -397,19 +384,19 @@ def get_game_types(request: HttpRequest):
         game_types_out.append(game_type_out)
     return game_types_out
 
-@router.get('/game-period/list', response=list[GamePeriodOut])
+@router.get('/game-period/list', response=list[GamePeriodOut], tags=[ApiDocTags.GAME])
 def get_game_periods(request: HttpRequest):
     game_periods = GamePeriod.objects.order_by('order')
     return game_periods
 
-@router.get('/game/list', response=list[GameOut])
+@router.get('/game/list', response=list[GameOut], tags=[ApiDocTags.GAME])
 def get_games(request: HttpRequest, on_now: bool = False):
     games = Game.objects.select_related('rink', 'game_type_name')
     if on_now:
         games = games.filter(status=2)
     return games.order_by('-date').all()
 
-@router.get('/game/list/banner', response=list[GameBannerOut], description="Returns a list of current games for the banner.")
+@router.get('/game/list/banner', response=list[GameBannerOut], description="Returns a list of current games for the banner.", tags=[ApiDocTags.GAME])
 def get_games_banner(request: HttpRequest):
     now = datetime.datetime.now(datetime.timezone.utc)
     games = Game.objects.\
@@ -425,7 +412,7 @@ def get_games_banner(request: HttpRequest):
             home_goals=game.home_goals, away_goals=game.away_goals, status=game.status))
     return games_out
 
-@router.get('/game/list/dashboard', response=GameDashboardOut)
+@router.get('/game/list/dashboard', response=GameDashboardOut, tags=[ApiDocTags.GAME])
 def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | None = None):
     upcoming_games_qs = Game.objects.filter(status=1).select_related('rink', 'game_type_name').order_by('date')
     previous_games_qs = Game.objects.filter(status=3).select_related('rink', 'game_type_name').order_by('-date')
@@ -439,12 +426,12 @@ def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | Non
 
     return GameDashboardOut(upcoming_games=upcoming_games, previous_games=previous_games)
 
-@router.get('/game/{game_id}', response=GameOut)
+@router.get('/game/{game_id}', response=GameOut, tags=[ApiDocTags.GAME])
 def get_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game.objects.select_related('rink', 'game_type_name'), id=game_id)
     return game
 
-@router.get('/game/{game_id}/extra', response=GameExtendedOut)
+@router.get('/game/{game_id}/extra', response=GameExtendedOut, tags=[ApiDocTags.GAME])
 def get_game_extra(request: HttpRequest, game_id: int):
     """Returns a game with extra information for the Live Dashboard."""
     game = get_object_or_404(Game.objects.select_related('rink', 'game_type_name'), id=game_id)
@@ -477,7 +464,7 @@ def get_game_extra(request: HttpRequest, game_id: int):
                            date=game.date, time=game.time, season_id=game.season_id, rink_id=game.rink_id, arena_id=game.arena_id,
                            home_team_game_type_record=home_team_record, away_team_game_type_record=away_team_record)
 
-@router.post('/game', response={200: GameOut, 400: Message, 503: Message})
+@router.post('/game', response={200: GameOut, 400: Message, 503: Message}, tags=[ApiDocTags.GAME])
 def add_game(request: HttpRequest, data: GameIn):
     try:
         game_season = get_current_season(data.date)
@@ -533,7 +520,7 @@ def add_game(request: HttpRequest, data: GameIn):
     game = Game.objects.get(id=game.id)
     return game
 
-@router.patch("/game/{game_id}", response={204: None, 400: Message})
+@router.patch("/game/{game_id}", response={204: None, 400: Message}, tags=[ApiDocTags.GAME])
 def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
     game = get_object_or_404(Game, id=game_id)
     data_status = data.get('status')
@@ -574,7 +561,7 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
         return 400, {"message": str(e)}
     return 204, None
 
-@router.delete("/game/{game_id}", response={204: None})
+@router.delete("/game/{game_id}", response={204: None}, tags=[ApiDocTags.GAME])
 def delete_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
     with transaction.atomic(using='hockey'):
@@ -583,12 +570,12 @@ def delete_game(request: HttpRequest, game_id: int):
         game.delete()
     return 204, None
 
-@router.get("/game/defensive-zone-exit/{defensive_zone_exit_id}", response=DefensiveZoneExitOut)
+@router.get("/game/defensive-zone-exit/{defensive_zone_exit_id}", response=DefensiveZoneExitOut, tags=[ApiDocTags.GAME])
 def get_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id: int):
     defensive_zone_exit = get_object_or_404(DefensiveZoneExit, id=defensive_zone_exit_id)
     return defensive_zone_exit
 
-@router.patch("/game/defensive-zone-exit/{defensive_zone_exit_id}", response={204: None})
+@router.patch("/game/defensive-zone-exit/{defensive_zone_exit_id}", response={204: None}, tags=[ApiDocTags.GAME])
 def update_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id: int, data: PatchDict[DefensiveZoneExitIn]):
     defensive_zone_exit = get_object_or_404(DefensiveZoneExit, id=defensive_zone_exit_id)
     for attr, value in data.items():
@@ -596,12 +583,12 @@ def update_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id
     defensive_zone_exit.save()
     return 204, None
 
-@router.get("/game/offensive-zone-entry/{offensive_zone_entry_id}", response=OffensiveZoneEntryOut)
+@router.get("/game/offensive-zone-entry/{offensive_zone_entry_id}", response=OffensiveZoneEntryOut, tags=[ApiDocTags.GAME])
 def get_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_id: int):
     offensive_zone_entry = get_object_or_404(OffensiveZoneEntry, id=offensive_zone_entry_id)
     return offensive_zone_entry
 
-@router.patch("/game/offensive-zone-entry/{offensive_zone_entry_id}", response={204: None})
+@router.patch("/game/offensive-zone-entry/{offensive_zone_entry_id}", response={204: None}, tags=[ApiDocTags.GAME])
 def update_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_id: int, data: PatchDict[OffensiveZoneEntryIn]):
     offensive_zone_entry = get_object_or_404(OffensiveZoneEntry, id=offensive_zone_entry_id)
     for attr, value in data.items():
@@ -609,17 +596,17 @@ def update_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_
     offensive_zone_entry.save()
     return 204, None
 
-@router.get("/game/shots/{shots_id}", response=ShotsOut)
+@router.get("/game/shots/{shots_id}", response=ShotsOut, tags=[ApiDocTags.GAME])
 def get_game_shots(request: HttpRequest, shots_id: int):
     shots = get_object_or_404(Shots, id=shots_id)
     return shots
 
-@router.get("/game/turnovers/{turnovers_id}", response=TurnoversOut)
+@router.get("/game/turnovers/{turnovers_id}", response=TurnoversOut, tags=[ApiDocTags.GAME])
 def get_game_turnovers(request: HttpRequest, turnovers_id: int):
     turnovers = get_object_or_404(Turnovers, id=turnovers_id)
     return turnovers
 
-@router.get("/game/{game_id}/live-data", response=GameLiveDataOut)
+@router.get("/game/{game_id}/live-data", response=GameLiveDataOut, tags=[ApiDocTags.GAME])
 def get_game_live_data(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
     home_goalie_id, away_goalie_id = get_game_current_goalies(game)
@@ -641,12 +628,12 @@ def get_game_live_data(request: HttpRequest, game_id: int):
                            away_turnovers=game.away_turnovers,
                            events=game.gameevents_set.order_by("period__order", "-time").all())
 
-@router.get('/game/{game_id}/events', response=list[GameEventOut])
+@router.get('/game/{game_id}/events', response=list[GameEventOut], tags=[ApiDocTags.GAME])
 def get_game_events(request: HttpRequest, game_id: int):
     game_events = GameEvents.objects.filter(game_id=game_id).order_by("period__order", "-time").all()
     return game_events
 
-@router.post('/game/{game_id}/spray-chart', response=list[GameEventOut])
+@router.post('/game/{game_id}/spray-chart', response=list[GameEventOut], tags=[ApiDocTags.GAME, ApiDocTags.SPRAY_CHART])
 def get_game_spray_chart(request: HttpRequest, game_id: int, filters: GameSprayChartFilters):
     events = GameEvents.objects.filter(game_id=game_id)
     if filters.event_name is not None:
@@ -657,7 +644,7 @@ def get_game_spray_chart(request: HttpRequest, game_id: int, filters: GameSprayC
 
 # region Game players
 
-@router.get('/game-player/game/{game_id}', response=GamePlayersOut)
+@router.get('/game-player/game/{game_id}', response=GamePlayersOut, tags=[ApiDocTags.GAME_PLAYER])
 def get_game_players(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
     home_goalies = []
@@ -674,7 +661,7 @@ def get_game_players(request: HttpRequest, game_id: int):
         away_players.append(PlayerBaseOut(id=away_player.id, first_name=away_player.first_name, last_name=away_player.last_name))
     return GamePlayersOut(home_goalies=home_goalies, home_players=home_players, away_goalies=away_goalies, away_players=away_players)
 
-@router.get('/game-player/goalie/{goalie_id}', response=list[GameGoalieOut])
+@router.get('/game-player/goalie/{goalie_id}', response=list[GameGoalieOut], tags=[ApiDocTags.GAME_PLAYER, ApiDocTags.STATS])
 def get_goalie_games(request: HttpRequest, goalie_id: int, limit: int = 5):
     goalie_games = GameGoalie.objects.filter(goalie_id=goalie_id).order_by('-game__date')[:limit]
     games: list[GameGoalieOut] = []
@@ -682,7 +669,7 @@ def get_goalie_games(request: HttpRequest, goalie_id: int, limit: int = 5):
         games.append(form_game_goalie_out(game_goalie))
     return games
 
-@router.get('/game-player/player/{player_id}', response=list[GamePlayerOut])
+@router.get('/game-player/player/{player_id}', response=list[GamePlayerOut], tags=[ApiDocTags.GAME_PLAYER, ApiDocTags.STATS])
 def get_player_games(request: HttpRequest, player_id: int, limit: int = 5):
     player_games = GamePlayer.objects.filter(player_id=player_id).order_by('-game__date')[:limit]
     games: list[GamePlayerOut] = []
@@ -690,40 +677,26 @@ def get_player_games(request: HttpRequest, player_id: int, limit: int = 5):
         games.append(form_game_player_out(game_player))
     return games
 
-# @router.post('/game-player/list', response={204: None})
-# def set_game_players(request: HttpRequest, game_id: int, data: GamePlayersIn):
-#     # TODO: asked about necessity of this function. If necessary, write a logic to remove only disappeared players and add new ones.
-#     with transaction.atomic(using='hockey'):
-#         GamePlayer.objects.filter(game_id=game_id).delete()
-#         for player_id in data.player_ids:
-#             GamePlayer.objects.create(game_id=game_id, player_id=player_id)
-#     return 204, None
-
 # endregion
 
 # region Game events
 
-@router.get('/game-event-name/list', response=list[ObjectIdName])
+@router.get('/game-event-name/list', response=list[ObjectIdName], tags=[ApiDocTags.GAME_EVENT])
 def get_game_event_names(request: HttpRequest):
     game_event_names = GameEventName.objects.all()
     return game_event_names
 
-@router.get('/shot-type/list', response=list[ObjectIdName])
+@router.get('/shot-type/list', response=list[ObjectIdName], tags=[ApiDocTags.GAME_EVENT])
 def get_shot_types(request: HttpRequest):
     shot_types = ShotType.objects.order_by('name').all()
     return shot_types
 
-# @router.get('/game-event/list/with-video', response=list[GameEventOut])
-# def get_game_events_with_video(request: HttpRequest):
-#     game_events = GameEvents.objects.exclude(youtube_link=None).all()
-#     return game_events
-
-@router.get('/game-event/{game_event_id}', response=GameEventOut)
+@router.get('/game-event/{game_event_id}', response=GameEventOut, tags=[ApiDocTags.GAME_EVENT])
 def get_game_event(request: HttpRequest, game_event_id: int):
     game_event = get_object_or_404(GameEvents, id=game_event_id)
     return game_event
 
-@router.post('/game-event', response={200: ObjectId, 400: Message})
+@router.post('/game-event', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.GAME_EVENT])
 def add_game_event(request: HttpRequest, data: GameEventIn):
     try:
         with transaction.atomic(using='hockey'):
@@ -795,7 +768,7 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
         return resp.entry_already_exists("Game event", str(e))
     return {"id": game_event.id}
 
-@router.patch("/game-event/{game_event_id}", response={204: None, 400: Message})
+@router.patch("/game-event/{game_event_id}", response={204: None, 400: Message}, tags=[ApiDocTags.GAME_EVENT])
 def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[GameEventIn]):
 
     game_event = get_object_or_404(GameEvents, id=game_event_id)
@@ -897,7 +870,7 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
 
     return 204, None
 
-@router.delete("/game-event/{game_event_id}", response={204: None})
+@router.delete("/game-event/{game_event_id}", response={204: None}, tags=[ApiDocTags.GAME_EVENT])
 def delete_game_event(request: HttpRequest, game_event_id: int):
     game_event = get_object_or_404(GameEvents, id=game_event_id)
     game: Game = game_event.game
@@ -961,7 +934,7 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
 
 # region Highlight reels
 
-@router.get('/highlight-reels', response=list[HighlightReelListOut])
+@router.get('/highlight-reels', response=list[HighlightReelListOut], tags=[ApiDocTags.HIGHLIGHT_REEL])
 def get_highlight_reels(request: HttpRequest):
     highlight_reels = HighlightReel.objects.all() # TODO: filter by current user
     highlight_reels_out = []
@@ -978,7 +951,7 @@ def get_highlight_reels(request: HttpRequest):
 
 @router.post('/highlight-reels', response={200: ObjectId, 400: Message},
              description=("Create a new highlight reel and add highlights to it.\n\n"
-             "Each highlight should have either a game event ID or a custom event fields filled in."))
+             "Each highlight should have either a game event ID or a custom event fields filled in."), tags=[ApiDocTags.HIGHLIGHT_REEL])
 def add_highlight_reel(request: HttpRequest, data: HighlightReelIn):
     try:
         with transaction.atomic(using='hockey'):
@@ -992,7 +965,7 @@ def add_highlight_reel(request: HttpRequest, data: HighlightReelIn):
 @router.put('/highlight-reels/{highlight_reel_id}', response={204: None, 400: Message},
     description=("Update a highlight reel.\n\n"
                  "If id is provided for a highlight, it will be updated, otherwise a new highlight will be created.\n\n"
-                 "Not provided highlights will be deleted."))
+                 "Not provided highlights will be deleted."), tags=[ApiDocTags.HIGHLIGHT_REEL])
 def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: HighlightReelUpdateIn):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
     highlight_reel.name = data.name
@@ -1032,7 +1005,7 @@ def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: Hi
         return 400, {"message": str(e)}
     return 204, None
 
-@router.delete('/highlight-reels/{highlight_reel_id}', response={204: None})
+@router.delete('/highlight-reels/{highlight_reel_id}', response={204: None}, tags=[ApiDocTags.HIGHLIGHT_REEL])
 def delete_highlight_reel(request: HttpRequest, highlight_reel_id: int):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
     highlights = highlight_reel.highlights.all()
@@ -1047,12 +1020,12 @@ def delete_highlight_reel(request: HttpRequest, highlight_reel_id: int):
         return 400, {"message": str(e)}
     return 204, None
 
-@router.get('/highlight-reels/{highlight_reel_id}/highlights', response=list[HighlightOut])
+@router.get('/highlight-reels/{highlight_reel_id}/highlights', response=list[HighlightOut], tags=[ApiDocTags.HIGHLIGHT_REEL])
 def get_highlight_reel_highlights(request: HttpRequest, highlight_reel_id: int):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
     return highlight_reel.highlights.order_by('order').all()
 
-@router.post('/highlight-reels/{highlight_reel_id}/highlights', response={200: ObjectId, 400: Message})
+@router.post('/highlight-reels/{highlight_reel_id}/highlights', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.HIGHLIGHT_REEL])
 def add_highlight(request: HttpRequest, highlight_reel_id: int, data: HighlightIn):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
     try:
@@ -1062,7 +1035,7 @@ def add_highlight(request: HttpRequest, highlight_reel_id: int, data: HighlightI
         return 400, {"message": str(e)}
     return {"id": highlight.id}
 
-@router.delete('/highlights/{highlight_id}', response={204: None, 400: Message})
+@router.delete('/highlights/{highlight_id}', response={204: None, 400: Message}, tags=[ApiDocTags.HIGHLIGHT_REEL])
 def delete_highlight(request: HttpRequest, highlight_id: int):
     highlight = get_object_or_404(Highlight, id=highlight_id)
     try:
@@ -1078,7 +1051,7 @@ def delete_highlight(request: HttpRequest, highlight_id: int):
 
 # region Video Library
 
-@router.get('/video-library', response=list[VideoLibraryOut])
+@router.get('/video-library', response=list[VideoLibraryOut], tags=[ApiDocTags.VIDEO_LIBRARY])
 def get_video_library(request: HttpRequest):
     video_library = VideoLibrary.objects.all()
     video_library_out = []
@@ -1091,12 +1064,12 @@ def get_video_library(request: HttpRequest):
             youtube_link=video.youtube_link, added_by=added_by, date=video.date))
     return video_library_out
 
-@router.post('/video-library', response={200: ObjectId, 400: Message})
+@router.post('/video-library', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.VIDEO_LIBRARY])
 def add_video_library(request: HttpRequest, data: VideoLibraryIn):
     video_library = VideoLibrary.objects.create(name=data.name, description=data.description, youtube_link=data.youtube_link, user_id=request.user.id)
     return {"id": video_library.id}
 
-@router.patch('/video-library/{video_library_id}', response={204: None, 400: Message})
+@router.patch('/video-library/{video_library_id}', response={204: None, 400: Message}, tags=[ApiDocTags.VIDEO_LIBRARY])
 def update_video_library(request: HttpRequest, video_library_id: int, data: PatchDict[VideoLibraryIn]):
     video_library = get_object_or_404(VideoLibrary, id=video_library_id)
     for attr, value in data.items():
@@ -1104,7 +1077,7 @@ def update_video_library(request: HttpRequest, video_library_id: int, data: Patc
     video_library.save()
     return 204, None
 
-@router.delete('/video-library/{video_library_id}', response={204: None, 400: Message})
+@router.delete('/video-library/{video_library_id}', response={204: None, 400: Message}, tags=[ApiDocTags.VIDEO_LIBRARY])
 def delete_video_library(request: HttpRequest, video_library_id: int):
     video_library = get_object_or_404(VideoLibrary, id=video_library_id)
     video_library.delete()

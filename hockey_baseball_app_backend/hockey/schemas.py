@@ -203,7 +203,8 @@ class TeamIn(Schema):
 class TeamOut(TeamIn):
     id: int
 
-class TeamSeasonIn(Schema):
+class TeamSeasonOut(Schema):
+    id: int
     team_id: int
     season_id: int
     games_played: int
@@ -211,9 +212,6 @@ class TeamSeasonIn(Schema):
     wins: int
     losses: int
     ties: int
-
-class TeamSeasonOut(TeamSeasonIn):
-    id: int
 
 # endregion
 
