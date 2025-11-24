@@ -652,3 +652,16 @@ class GameEventsAnalysisQueue(models.Model):
 
     class Meta:
         db_table = "game_events_analysis_queue"
+
+class ProcessStatus(models.Model):
+    name = models.CharField(max_length=150, unique=True)
+    status = models.CharField(max_length=150, null=True, blank=True)
+    last_finished = models.DateTimeField(null=True, blank=True)
+    last_updated = models.DateTimeField(auto_now=True)
+    log = models.TextField(default="")
+
+    def __str__(self):
+        return f"{self.name}"
+
+    class Meta:
+        db_table = "processes_status"

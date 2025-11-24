@@ -4,12 +4,11 @@ import os
 import configparser
 import time
 from typing import Any, Final
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import scoped_session
 import traceback
 
 from constants import GameEventSystemStatus, GameSystemStatus
-from logger import Log
 from models import Models
 
 app_path = os.path.dirname(os.path.realpath(__file__))
@@ -22,6 +21,34 @@ class EventAction:
     ADDED = 1
     UPDATED = 2
     DELETED = 3
+
+# region Logging functions.
+
+def write_log(message: str) -> None:
+    """Writes a log message to the database."""
+
+    log_msg = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S") + " - " + message
+    
+    print(log_msg)
+
+    log_arr = []
+    process_status = session.scalar(select(m.ProcessStatus).where(m.ProcessStatus.name == "game_events_analyzer"))
+    
+    log_arr = process_status.log.split("\n")
+    
+    while len(log_arr) > 10000:
+        log_arr.pop()
+        
+    log_arr.insert(0, log_msg)
+    
+    process_status.log = "\n".join(log_arr)
+
+def print_console(message: str) -> None:
+    """Prints a message to the console."""
+    
+    print((datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S") + " - " + message))
+
+# endregion
 
 def form_missing_person_message(person: str, event: dict[str, Any]) -> str:
     """Forms a message for a missing person.
@@ -391,9 +418,16 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
 try:
     warning_msgs = []
     config.read(f"{app_path}/settings.ini")
-    log = Log(f"{app_path}/game_events_analyzer.log")
-    m = Models(f'postgresql://postgres:{config["DEFAULT"]["DB_PWD"]}@{config["DEFAULT"]["DB_ADDR"]}')
+    m = Models(f'postgresql://{os.getenv("DB_USER")}:{os.getenv("DB_PASSWORD")}@{os.getenv("DB_HOST")}:{os.getenv("DB_PORT")}/{os.getenv("DB_NAME")}')
     session, dbsession = m.new_session()
+
+    process_status = session.scalar(select(m.ProcessStatus).where(m.ProcessStatus.name == "game_events_analyzer"))
+    if process_status is None:
+        process_status = m.ProcessStatus(name="game_events_analyzer", log="")
+        session.add(process_status)
+    process_status.status = "RUNNING"
+    process_status.last_updated = datetime.datetime.now(datetime.timezone.utc)
+    session.commit()
 
     res = None
 
@@ -439,16 +473,23 @@ try:
         
         if error_message is not None:
             event.error_message = error_message
-            log.write(f'ERROR: {error_message}')
+            write_log(f'ERROR: {error_message}')
         else:
             status_str = "Applied" if event.status == GameEventSystemStatus.NEW else "Deleted"
             session.delete(event)
-            log.write(f'INFO: {status_str} {payload["type"]} {payload["id"]}.')
+            write_log(f'INFO: {status_str} {payload["type"]} {payload["id"]}.')
         
         session.commit()
 
+    session.execute(update(m.ProcessStatus).where(m.ProcessStatus.name == "game_events_analyzer").\
+        values(status="OK", last_finished=datetime.datetime.now(datetime.timezone.utc)))
+    session.commit()
+
 except Exception as e:
-    log.write(f"ERROR: {traceback.format_exc()}")
+    write_log(f"ERROR: {traceback.format_exc()}")
+    session.execute(update(m.ProcessStatus).where(m.ProcessStatus.name == "game_events_analyzer").\
+        values(status="ERROR", last_finished=datetime.datetime.now(datetime.timezone.utc)))
+    session.commit()
 finally:
     if session is not None: m.remove_session(session, dbsession)
     time.sleep(3)

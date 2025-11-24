@@ -32,6 +32,8 @@ class Models:
         self.GameEvents = self._dbbase.classes.game_events
         self.GameEventsAnalysisQueue = self._dbbase.classes.game_events_analysis_queue
 
+        self.ProcessStatus = self._dbbase.classes.processes_status
+
         self.session_factory = sessionmaker(autocommit=False, autoflush=False, bind=self._dbengine)
 
     def new_session(self) -> tuple[Session, scoped_session[Session]]:
