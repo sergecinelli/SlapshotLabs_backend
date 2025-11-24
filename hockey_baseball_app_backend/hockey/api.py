@@ -47,7 +47,7 @@ router = Router()
 
 User = get_user_model()
 
-# region Goalie, player
+# region Goalie and player
 
 @router.get('/player-position/list', response=list[PlayerPositionOut], tags=[ApiDocTags.PLAYER])
 def get_player_positions(request: HttpRequest):
