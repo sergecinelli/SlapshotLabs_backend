@@ -169,8 +169,11 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
 
         elif event['shot_type'] == "blocked":
 
-            player_season.blocked_shots += diff
-            player_game.blocked_shots += diff
+            if player_2_season is None:
+                return form_missing_person_message("second player", event)
+
+            player_2_season.blocked_shots += diff
+            player_2_game.blocked_shots += diff
 
         elif event['shot_type'] == "save":
 
@@ -214,6 +217,10 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
         if player_season is not None:
             player_season.penalty_minutes += penalty_minutes
             player_game.penalty_minutes += penalty_minutes
+
+        if player_2_season is not None:
+            player_2_season.penalties_drawn += diff
+            player_2_game.penalties_drawn += diff
 
     # endregion
 
