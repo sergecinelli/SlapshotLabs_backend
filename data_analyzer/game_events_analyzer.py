@@ -124,7 +124,7 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
 
     # endregion
 
-    # region Analyze event.
+    # region Analyze event
 
     diff = (1 if is_add else -1)
 
