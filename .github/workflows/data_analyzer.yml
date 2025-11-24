@@ -1,0 +1,46 @@
+name: Build and Push Data Analyzer to ECR
+ 
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data_analyzer/**'
+  workflow_dispatch:
+ 
+permissions:
+  id-token: write
+  contents: read
+ 
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+ 
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+ 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+ 
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Override ECR_REPOSITORY
+        run: echo "ECR_REPOSITORY=data-analyzer" >> $GITHUB_ENV
+
+      - name: Build and Push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+        run: |
+          echo "Building the Docker image..."
+          docker build --platform linux/amd64 \
+            -f data_analyzer/Dockerfile \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest data_analyzer/
+ 
+          echo "Pushing the image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
