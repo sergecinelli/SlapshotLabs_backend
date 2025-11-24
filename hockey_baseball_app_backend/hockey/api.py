@@ -158,6 +158,10 @@ def get_players(request: HttpRequest, team_id: int | None = None):
         players_out.append(form_player_out(player, current_season))
     return players_out
 
+@router.post("/player/seasons", response=list[PlayerSeasonOut], tags=[ApiDocTags.PLAYER, ApiDocTags.STATS])
+def get_player_seasons(request: HttpRequest, data: PlayerSeasonsGet):
+    return PlayerSeason.objects.filter(player_id=data.player_id, season_id__in=data.season_ids)
+
 @router.get('/player/{player_id}', response=PlayerOut, tags=[ApiDocTags.PLAYER])
 def get_player(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
@@ -214,10 +218,6 @@ def delete_player(request: HttpRequest, player_id: int):
         player.save()
         return 200, {"message": "Archived."}
     return 200, {"message": "Deleted."}
-
-@router.post("/player/seasons", response=list[PlayerSeasonOut], tags=[ApiDocTags.PLAYER, ApiDocTags.STATS])
-def get_player_seasons(request: HttpRequest, data: PlayerSeasonsGet):
-    return PlayerSeason.objects.filter(player_id=data.player_id, season_id__in=data.season_ids)
 
 @router.post("/player/{player_id}/spray-chart", response={200: list[GameEventOut], 400: Message}, tags=[ApiDocTags.PLAYER, ApiDocTags.SPRAY_CHART])
 def get_player_spray_chart(request: HttpRequest, player_id: int, filters: PlayerSprayChartFilters):
