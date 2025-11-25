@@ -1,0 +1,8 @@
+version: "3.8"
+
+services:
+  data-analyzer:
+    image: "${AWS_ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com/data-analyzer:latest"
+    env_file:
+      - .env
+    restart: always
