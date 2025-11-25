@@ -1,30 +1,30 @@
-name: Build and Push Data Analyzer to ECR
- 
+name: Build, Push to ECR and Deploy to EC2
+
 on:
   push:
     branches: [main]
     paths:
       - 'data_analyzer/**'
   workflow_dispatch:
- 
+
 permissions:
   id-token: write
   contents: read
- 
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
- 
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
- 
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
- 
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -40,6 +40,46 @@ jobs:
           docker build --platform linux/amd64 \
             -f data_analyzer/Dockerfile \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest data_analyzer/
- 
+
           echo "Pushing the image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+
+  deploy-to-ec2:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo (for docker-compose.yml)
+        uses: actions/checkout@v4
+
+      - name: Copy compose file to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "data_analyzer/docker-compose.yml"
+          target: "~/app/"
+
+      - name: SSH to EC2 and deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/app
+
+            echo "Logging into ECR from EC2..."
+            aws ecr get-login-password --region ${{ vars.AWS_REGION }} \
+              | docker login --username AWS --password-stdin ${{ vars.AWS_ACCOUNT }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
+
+            echo "Pulling latest image..."
+            docker compose pull
+
+            echo "Recreating container..."
+            docker compose up -d --force-recreate
+
+            echo "Cleaning old images..."
+            docker image prune -f
