@@ -219,8 +219,8 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
             player_game.penalty_minutes += penalty_minutes
 
         if player_2_season is not None:
-            player_2_season.penalties_drawn += diff
-            player_2_game.penalties_drawn += diff
+            player_2_season.penalties_drawn += penalty_minutes
+            player_2_game.penalties_drawn += penalty_minutes
 
     # endregion
 
