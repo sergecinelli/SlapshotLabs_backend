@@ -228,18 +228,24 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
 
     if is_add_goalie_season:
         session.add(goalie_season)
+        session.flush()
     if is_add_goalie_game:
         session.add(goalie_game)
+        session.flush()
 
     if is_add_player_season:
         session.add(player_season)
+        session.flush()
     if is_add_player_game:
         session.add(player_game)
+        session.flush()
 
     if is_add_player_2_season:
         session.add(player_2_season)
+        session.flush()
     if is_add_player_2_game:
         session.add(player_2_game)
+        session.flush()
 
     # endregion
 
@@ -262,14 +268,14 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
     away_team_season = session.scalar(select(m.TeamSeason).where(
         m.TeamSeason.season_id == season_id, m.TeamSeason.team_id == away_team_id))
 
+    is_add_home_team_season = False
+    is_add_away_team_season = False
     if home_team_season is None:
         home_team_season = m.init_team_season(season_id, home_team_id)
-        session.add(home_team_season)
-        session.commit()
+        is_add_home_team_season = True
     if away_team_season is None:
         away_team_season = m.init_team_season(season_id, away_team_id)
-        session.add(away_team_season)
-        session.commit()
+        is_add_away_team_season = True
 
     home_goalies_on_ice = ([game['home_start_goalie_id']] +
         [evt['goalie_id'] for evt in game['events'] if (evt['event_name'] == "goalie change" and evt['team_id'] == game['home_team_id'])])
@@ -311,8 +317,10 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
 
         if is_add_home_goalie_season:
             session.add(home_goalie_season)
+            session.flush()
         if is_add_home_goalie_game:
             session.add(home_goalie_game)
+            session.flush()
 
     for game_away_goalie_id in game['away_goalies']:
 
@@ -346,8 +354,10 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
 
         if is_add_away_goalie_season:
             session.add(away_goalie_season)
+            session.flush()
         if is_add_away_goalie_game:
             session.add(away_goalie_game)
+            session.flush()
 
     for game_home_player_id in game['home_players']:
 
@@ -372,8 +382,10 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
 
         if is_add_home_player_season:
             session.add(home_player_season)
+            session.flush()
         if is_add_home_player_game:
             session.add(home_player_game)
+            session.flush()
 
     for game_away_player_id in game['away_players']:
 
@@ -398,8 +410,10 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
 
         if is_add_away_player_season:
             session.add(away_player_season)
+            session.flush()
         if is_add_away_player_game:
             session.add(away_player_game)
+            session.flush()
 
     home_team_season.games_played += diff
     away_team_season.games_played += diff
@@ -418,6 +432,13 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
     away_team_season.goals_for += game['away_goals']
     home_team_season.goals_against += game['away_goals']
     away_team_season.goals_against += game['home_goals']
+
+    if is_add_home_team_season:
+        session.add(home_team_season)
+        session.flush()
+    if is_add_away_team_season:
+        session.add(away_team_season)
+        session.flush()
 
 
 try:
@@ -491,6 +512,7 @@ try:
     session.commit()
 
 except Exception as e:
+    session.rollback()
     write_log(f"ERROR: {traceback.format_exc()}")
     session.execute(update(m.ProcessStatus).where(m.ProcessStatus.name == "game_events_analyzer").\
         values(status="ERROR", last_finished=datetime.datetime.now(datetime.timezone.utc)))
