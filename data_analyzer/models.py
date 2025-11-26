@@ -67,7 +67,7 @@ class Models:
     def init_game_player(self, game_id: int, player_id: int):
         return self.GamePlayer(game_id=game_id, player_id=player_id,
             goals=0, assists=0, shots_on_goal=0, scoring_chances=0, blocked_shots=0,
-            short_handed_goals=0, power_play_goals=0,
+            short_handed_goals=0, power_play_goals=0, penalties_drawn=datetime.timedelta(seconds=0),
             penalty_minutes=datetime.timedelta(seconds=0), turnovers=0, faceoffs=0, faceoffs_won=0)
 
     def init_goalie_season(self, season_id: int, goalie_id: int):
@@ -78,7 +78,8 @@ class Models:
 
     def init_game_goalie(self, game_id: int, goalie_id: int):
         return self.GameGoalie(game_id=game_id, goalie_id=goalie_id,
-            goals_against=0, saves=0, short_handed_goals_against=0, power_play_goals_against=0)
+            goals_against=0, saves=0, penalty_minutes=datetime.timedelta(seconds=0),
+            short_handed_goals_against=0, power_play_goals_against=0)
 
     def init_team_season(self, season_id: int, team_id: int):
         return self.TeamSeason(season_id=season_id, team_id=team_id,

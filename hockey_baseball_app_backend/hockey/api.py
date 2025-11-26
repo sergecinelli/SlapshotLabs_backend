@@ -426,6 +426,20 @@ def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | Non
 
     return GameDashboardOut(upcoming_games=upcoming_games, previous_games=previous_games)
 
+@router.get("/game/onetimesaveallgames", response={204: None}, tags=[ApiDocTags.GAME])
+def one_time_save_all_games(request: HttpRequest):
+    games = Game.objects.filter(status=GameStatus.GAME_OVER.id)
+    for game in games:
+        GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.NEW)
+    return 204, None
+
+@router.get("/game/onetimedeprecateallgames", response={204: None}, tags=[ApiDocTags.GAME])
+def one_time_deprecate_all_games(request: HttpRequest):
+    games = Game.objects.filter(status=GameStatus.GAME_OVER.id)
+    for game in games:
+        GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.DEPRECATED)
+    return 204, None
+
 @router.get('/game/{game_id}', response=GameOut, tags=[ApiDocTags.GAME])
 def get_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game.objects.select_related('rink', 'game_type_name'), id=game_id)
