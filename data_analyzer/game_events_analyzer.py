@@ -425,7 +425,7 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
 try:
     warning_msgs = []
     config.read(f"{app_path}/settings.ini")
-    m = Models(f'postgresql://{os.getenv("DB_USER")}:{os.getenv("DB_PASSWORD")}@{os.getenv("DB_HOST")}:{os.getenv("DB_PORT")}/{os.getenv("DB_NAME_HOCKEY")}')
+    m = Models(f'postgresql://{os.getenv("DB_USER")}:{os.getenv("DB_PASSWORD")}@{os.getenv("DB_HOST")}:{os.getenv("DB_PORT")}/{os.getenv("DB_NAME_HOCKEY")}?sslmode={os.getenv("SSLMODE")}')
     session, dbsession = m.new_session()
 
     process_status = session.scalar(select(m.ProcessStatus).where(m.ProcessStatus.name == "game_events_analyzer"))
