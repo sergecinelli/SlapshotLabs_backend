@@ -271,17 +271,13 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
         session.add(away_team_season)
         session.commit()
 
-    try:
-        last_home_goalie_change = [evt for evt in game['events'] if evt['event_name'] == "goalie change" and evt['team_id'] == game['home_team_id']][-1]
-    except IndexError:
-        last_home_goalie_change = None
-    try:
-        last_away_goalie_change = [evt for evt in game['events'] if evt['event_name'] == "goalie change" and evt['team_id'] == game['away_team_id']][-1]
-    except IndexError:
-        last_away_goalie_change = None
+    home_goalies_on_ice = ([game['home_start_goalie_id']] +
+        [evt['goalie_id'] for evt in game['events'] if (evt['event_name'] == "goalie change" and evt['team_id'] == game['home_team_id'])])
+    away_goalies_on_ice = ([game['away_start_goalie_id']] +
+        [evt['goalie_id'] for evt in game['events'] if (evt['event_name'] == "goalie change" and evt['team_id'] == game['away_team_id'])])
 
-    last_home_goalie_id = (last_home_goalie_change['goalie_id'] if last_home_goalie_change is not None else game['home_start_goalie_id'])
-    last_away_goalie_id = (last_away_goalie_change['goalie_id'] if last_away_goalie_change is not None else game['away_start_goalie_id'])
+    last_home_goalie_id = home_goalies_on_ice[-1]
+    last_away_goalie_id = away_goalies_on_ice[-1]
 
     for game_home_goalie_id in game['home_goalies']:
 
@@ -302,7 +298,8 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
 
         # endregion
 
-        home_goalie_season.games_played += diff
+        if home_goalie_season.goalie_id in home_goalies_on_ice:
+            home_goalie_season.games_played += diff
 
         if game['away_goals'] > game['home_goals'] and home_goalie_season.goalie_id == game['home_start_goalie_id']:
             # The goalie that started the game in net gets the loss if the team loses the game.
@@ -336,7 +333,8 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
 
         # endregion
 
-        away_goalie_season.games_played += diff
+        if away_goalie_season.goalie_id in away_goalies_on_ice:
+            away_goalie_season.games_played += diff
 
         if game['home_goals'] > game['away_goals'] and away_goalie_season.goalie_id == game['away_start_goalie_id']:
             # The goalie that started the game in net gets the loss if the team loses the game.
