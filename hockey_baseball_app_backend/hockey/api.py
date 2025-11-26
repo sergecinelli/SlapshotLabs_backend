@@ -523,6 +523,7 @@ def add_game(request: HttpRequest, data: GameIn):
 @router.patch("/game/{game_id}", response={204: None, 400: Message}, tags=[ApiDocTags.GAME])
 def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
     game = get_object_or_404(Game, id=game_id)
+    game_status = game.status
     data_status = data.get('status')
     if data_status is not None and data_status not in [status[0] for status in get_constant_class_int_choices(GameStatus)]:
         return 400, {"message": f"Invalid status: {data_status}"}
@@ -531,16 +532,15 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
     try:
         with transaction.atomic(using='hockey'):
 
-            if game.status != data_status and data_status == GameStatus.GAME_OVER.id:
+            if game_status != data_status and data_status == GameStatus.GAME_OVER.id:
                 # Game has finished, add its data to statistics.
-                GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.NEW)
-            elif data_status is not None and game.status == GameStatus.GAME_OVER.id and data_status != GameStatus.GAME_OVER.id:
+                pass
+            elif data_status is not None and game_status == GameStatus.GAME_OVER.id and data_status != GameStatus.GAME_OVER.id:
                 # Game finish has been undone, remove its data from statistics.
                 GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.DEPRECATED)
-            elif game.status == GameStatus.GAME_OVER.id and data_status in [GameStatus.GAME_OVER.id, None] and len(data) > 0:
+            elif game_status == GameStatus.GAME_OVER.id and data_status in [GameStatus.GAME_OVER.id, None] and len(data) > 0:
                 # If game has been modified after finishing, re-apply its data to statistics.
                 GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.DEPRECATED)
-                GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.NEW)
 
             if data.get('date') is not None and game.date != data.get('date'):
                 game.season = get_current_season(data.get('date'))
@@ -555,8 +555,22 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
                 game.home_players.set(data['home_players'])
             if data.get('away_players') is not None:
                 game.away_players.set(data['away_players'])
+
             game.full_clean()
             game.save()
+
+            game = Game.objects.get(id=game_id)
+
+            if game_status != data_status and data_status == GameStatus.GAME_OVER.id:
+                # Game has finished, add its data to statistics.
+                GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.NEW)
+            elif data_status is not None and game_status == GameStatus.GAME_OVER.id and data_status != GameStatus.GAME_OVER.id:
+                # Game finish has been undone, remove its data from statistics.
+                pass
+            elif game_status == GameStatus.GAME_OVER.id and data_status in [GameStatus.GAME_OVER.id, None] and len(data) > 0:
+                # If game has been modified after finishing, re-apply its data to statistics.
+                GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.NEW)
+                
     except ValidationError as e:
         return 400, {"message": str(e)}
     return 204, None
