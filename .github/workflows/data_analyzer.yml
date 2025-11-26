@@ -1,4 +1,4 @@
-name: Build, Push to ECR and Deploy to EC2
+name: Build, Push DataAnalyzer to ECR and Deploy to EC2
 
 on:
   push:
@@ -46,6 +46,7 @@ jobs:
 
 
   deploy-to-ec2:
+    if: false
     needs: build-and-push
     runs-on: ubuntu-latest
 
