@@ -8,7 +8,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import scoped_session
 import traceback
 
-from constants import GameEventSystemStatus, GameSystemStatus
+from constants import GameEventSystemStatus
 from models import Models
 
 app_path = os.path.dirname(os.path.realpath(__file__))
@@ -447,11 +447,11 @@ try:
 
         if payload['type'] == 'game':
 
-            if event.status not in [GameSystemStatus.NEW, GameSystemStatus.DEPRECATED]:
+            if event.status not in [GameEventSystemStatus.NEW, GameEventSystemStatus.DEPRECATED]:
                 error_messages.append(f"ERROR: Game {event.id} has an unknown status: {event.status}.")
                 continue
 
-            is_add = (event.status == GameSystemStatus.NEW)
+            is_add = (event.status == GameEventSystemStatus.NEW)
 
             for payload_event in payload['events']:
                 error_message = analyze_game_event(payload_event, is_add)
