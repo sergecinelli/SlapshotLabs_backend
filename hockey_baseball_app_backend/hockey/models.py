@@ -458,6 +458,7 @@ class GamePlayer(models.Model):
     scoring_chances = models.IntegerField(default=0)
     blocked_shots = models.IntegerField(default=0)
     penalty_minutes = models.DurationField(default=datetime.timedelta(0))
+    penalties_drawn = models.DurationField(default=datetime.timedelta(0))
     turnovers = models.IntegerField(default=0)
     faceoffs = models.IntegerField(default=0)
     faceoffs_won = models.IntegerField(default=0)
