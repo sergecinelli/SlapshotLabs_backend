@@ -427,11 +427,14 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
     else:
         home_team_season.ties += diff
         away_team_season.ties += diff
+
+    home_goals = (game['home_goals'] if is_add else -game['home_goals'])
+    away_goals = (game['away_goals'] if is_add else -game['away_goals'])
     
-    home_team_season.goals_for += game['home_goals']
-    away_team_season.goals_for += game['away_goals']
-    home_team_season.goals_against += game['away_goals']
-    away_team_season.goals_against += game['home_goals']
+    home_team_season.goals_for += home_goals
+    away_team_season.goals_for += away_goals
+    home_team_season.goals_against += away_goals
+    away_team_season.goals_against += home_goals
 
     if is_add_home_team_season:
         session.add(home_team_season)
