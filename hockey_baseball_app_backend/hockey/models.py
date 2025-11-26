@@ -493,6 +493,8 @@ class GameGoalie(models.Model):
     power_play_goals_against = models.IntegerField("PPGA", default=0)
     """PPGA field."""
 
+    penalty_minutes = models.DurationField(default=datetime.timedelta(0))
+
     shots_against = models.GeneratedField(
         expression=F('goals_against') + F('saves'),
         output_field=models.IntegerField(),
