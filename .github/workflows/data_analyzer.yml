@@ -74,7 +74,7 @@ jobs:
 
             echo "Logging into ECR from EC2..."
             aws ecr get-login-password --region ${{ vars.AWS_REGION }} \
-              | docker login --username AWS --password-stdin ${{ vars.AWS_ACCOUNT }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
+              | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
 
             echo "Pulling latest image..."
             docker compose pull
