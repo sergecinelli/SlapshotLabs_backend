@@ -189,6 +189,68 @@ class PlayerSeason(models.Model):
     def __str__(self):
         return f'{str(self.player)} - {self.season.name}'
 
+class PlayerTeamSeason(models.Model):
+
+    player = models.ForeignKey(Player, on_delete=models.CASCADE)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE)
+    season = models.ForeignKey(Season, on_delete=models.RESTRICT)
+
+    shots_on_goal = models.IntegerField(default=0)
+    games_played = models.IntegerField(default=0)
+    goals = models.IntegerField(default=0)
+    assists = models.IntegerField(default=0)
+    scoring_chances = models.IntegerField(default=0)
+    blocked_shots = models.IntegerField(default=0)
+    penalties_drawn = models.DurationField(default=datetime.timedelta(0))
+    penalty_minutes = models.DurationField(default=datetime.timedelta(0))
+
+    power_play_goals_diff = models.IntegerField("PP +/-", default=0)
+    """PP +/- field."""
+
+    penalty_kill_diff = models.IntegerField("PK +/-", default=0)
+    """PK +/- field."""
+
+    five_on_five_diff = models.IntegerField("5v5 +/-", default=0)
+    """5v5 +/- field."""
+
+    overall_diff = models.IntegerField("Overall +/-", default=0)
+    """Overall +/- field."""
+
+    short_handed_goals = models.IntegerField("SHG", default=0)
+    """SHG field."""
+
+    power_play_goals = models.IntegerField("PPG", default=0)
+    """PPG field."""
+
+    faceoffs = models.IntegerField(default=0)
+    faceoffs_won = models.IntegerField(default=0)
+
+    turnovers = models.IntegerField(default=0)
+
+    faceoff_win_percents = models.GeneratedField(
+        expression=Case(When(faceoffs__gt=0, then=((F('faceoffs_won') / F('faceoffs'))* 100)),
+                        default=Value(0), output_field=models.FloatField()),
+        output_field=models.FloatField(),
+        db_persist=True,
+        verbose_name="Faceoff Win %")
+
+    shots_on_goal_per_game = models.GeneratedField(
+        expression=Case(When(games_played__gt=0, then=(F('shots_on_goal') / F('games_played'))),
+                        default=Value(0), output_field=models.FloatField()),
+        output_field=models.FloatField(),
+        db_persist=True)
+
+    points = models.GeneratedField(
+        expression=F('goals') + F('assists'),
+        output_field=models.IntegerField(),
+        db_persist=True)
+
+    class Meta:
+        db_table = "player_team_seasons"
+
+    def __str__(self):
+        return f'{str(self.player)} - {self.team.name} - {self.season.name}'
+
 class PlayerTransaction(models.Model):
 
     player = models.ForeignKey(Player, on_delete=models.CASCADE)
@@ -542,10 +604,10 @@ class GameGoalie(models.Model):
 
     penalty_minutes = models.DurationField(default=datetime.timedelta(0))
 
-    shots_against = models.GeneratedField(
-        expression=F('goals_against') + F('saves'),
-        output_field=models.IntegerField(),
-        db_persist=True)
+    # shots_against = models.GeneratedField(
+    #     expression=F('goals_against') + F('saves'),
+    #     output_field=models.IntegerField(),
+    #     db_persist=True)
 
     save_percents = models.GeneratedField(
         expression=Case(When(goals_against__gt=0, then=((F('saves') / (F('goals_against') + F('saves'))) * 100)),

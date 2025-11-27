@@ -185,6 +185,9 @@ class PlayerSeasonOut(Schema):
     shots_on_goal_per_game: float
     points: int
 
+class PlayerTeamSeasonOut(PlayerSeasonOut):
+    team_id: int
+
 # endregion
 
 # region Team, season, division, level

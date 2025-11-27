@@ -30,12 +30,12 @@ from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZone
                       GoalieSeasonsGet, GoalieSprayChartFilters, GoalieTeamSeasonOut, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn,
                       HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn,
                       OffensiveZoneEntryOut, PlayerBaseOut, PlayerPositionOut, GoalieIn,
-                      GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, SeasonIn,
+                      GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, PlayerTeamSeasonOut, SeasonIn,
                       SeasonOut, ShotsIn, ShotsOut, SprayChartFilters,
                       TeamIn, TeamOut, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
 from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, GoalieTeamSeason, Highlight, HighlightReel, OffensiveZoneEntry, Player,
-                     PlayerPosition, PlayerSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName,
+                     PlayerPosition, PlayerSeason, PlayerTeamSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName,
                      Turnovers, VideoLibrary)
 from .utils import api_response_templates as resp
 from .utils.db_utils import (create_highlight, form_game_goalie_out, form_game_dashboard_game_out, form_game_player_out, form_goalie_out,
@@ -247,6 +247,11 @@ def get_player_spray_chart(request: HttpRequest, player_id: int, filters: Player
         events = events.filter(goal_type=filters.goal_type)
 
     return events.all()
+
+@router.get("/player/{player_id}/team-seasons", response=list[PlayerTeamSeasonOut], tags=[ApiDocTags.PLAYER, ApiDocTags.STATS])
+def get_player_team_seasons(request: HttpRequest, player_id: int, limit: int = 3):
+    return PlayerTeamSeason.objects.prefetch_related('season').filter(player_id=player_id)\
+        .order_by('-season__start_date')[:limit]
 
 # endregion
 

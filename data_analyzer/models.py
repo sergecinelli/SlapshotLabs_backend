@@ -25,6 +25,7 @@ class Models:
         self.GoalieSeason = self._dbbase.classes.goalie_seasons
         self.GoalieTeamSeason = self._dbbase.classes.goalie_team_seasons
         self.PlayerSeason = self._dbbase.classes.player_seasons
+        self.PlayerTeamSeason = self._dbbase.classes.player_team_seasons
         self.TeamSeason = self._dbbase.classes.team_seasons
 
         self.GamePlayer = self._dbbase.classes.game_players
@@ -59,6 +60,14 @@ class Models:
 
     def init_player_season(self, season_id: int, player_id: int):
         return self.PlayerSeason(season_id=season_id, player_id=player_id,
+            shots_on_goal=0, games_played=0, goals=0, assists=0, scoring_chances=0,
+            blocked_shots=0, penalties_drawn=datetime.timedelta(seconds=0), penalty_minutes=datetime.timedelta(seconds=0),
+            power_play_goals_diff=0, penalty_kill_diff=0, five_on_five_diff=0,
+            overall_diff=0, short_handed_goals=0, power_play_goals=0,
+            turnovers=0, faceoffs=0, faceoffs_won=0)
+
+    def init_player_team_season(self, season_id: int, player_id: int, team_id: int):
+        return self.PlayerTeamSeason(season_id=season_id, team_id=team_id, player_id=player_id,
             shots_on_goal=0, games_played=0, goals=0, assists=0, scoring_chances=0,
             blocked_shots=0, penalties_drawn=datetime.timedelta(seconds=0), penalty_minutes=datetime.timedelta(seconds=0),
             power_play_goals_diff=0, penalty_kill_diff=0, five_on_five_diff=0,

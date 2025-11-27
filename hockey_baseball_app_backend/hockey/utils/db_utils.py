@@ -138,7 +138,7 @@ def form_game_goalie_out(game_goalie: GameGoalie) -> GameGoalieOut:
         first_name=game_goalie.goalie.first_name,
         last_name=game_goalie.goalie.last_name,
         goals_against=game_goalie.goals_against,
-        shots_against=game_goalie.shots_against,
+        shots_against=game_goalie.shots_on_goal,
         saves=game_goalie.saves,
         save_percents=game_goalie.save_percents
     )
