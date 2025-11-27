@@ -46,7 +46,7 @@ jobs:
 
 
   deploy-to-ec2:
-    if: false
+   # if: false
     needs: build-and-push
     runs-on: ubuntu-latest
 
