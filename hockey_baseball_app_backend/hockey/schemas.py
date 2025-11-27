@@ -97,6 +97,9 @@ class GoalieSeasonOut(Schema):
     shots_on_goal_per_game: float
     points: int
 
+class GoalieTeamSeasonOut(GoalieSeasonOut):
+    team_id: int
+
 class PlayerIn(Schema):
     team_id: int | None = None
     position_id: int

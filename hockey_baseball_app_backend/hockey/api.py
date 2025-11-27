@@ -27,14 +27,14 @@ from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZone
                      GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut,
                       GameSprayChartFilters, GameTypeOut, GameTypeRecordOut, GoalieBaseOut, GoalieSeasonOut,
-                      GoalieSeasonsGet, GoalieSprayChartFilters, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn,
+                      GoalieSeasonsGet, GoalieSprayChartFilters, GoalieTeamSeasonOut, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn,
                       HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn,
                       OffensiveZoneEntryOut, PlayerBaseOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, SeasonIn,
                       SeasonOut, ShotsIn, ShotsOut, SprayChartFilters,
                       TeamIn, TeamOut, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
 from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
-                     GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, Highlight, HighlightReel, OffensiveZoneEntry, Player,
+                     GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, GoalieTeamSeason, Highlight, HighlightReel, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName,
                      Turnovers, VideoLibrary)
 from .utils import api_response_templates as resp
@@ -67,7 +67,8 @@ def get_goalies(request: HttpRequest, team_id: int | None = None):
 
 @router.post("/goalie/seasons", response=list[GoalieSeasonOut], tags=[ApiDocTags.PLAYER, ApiDocTags.STATS])
 def get_goalie_seasons(request: HttpRequest, data: GoalieSeasonsGet):
-    return GoalieSeason.objects.filter(goalie_id=data.goalie_id, season_id__in=data.season_ids)
+    return GoalieSeason.objects.prefetch_related('season').filter(goalie_id=data.goalie_id, season_id__in=data.season_ids).\
+        order_by('-season__start_date').all()
 
 @router.get('/goalie/{goalie_id}', response=GoalieOut, tags=[ApiDocTags.PLAYER])
 def get_goalie(request: HttpRequest, goalie_id: int):
@@ -146,6 +147,11 @@ def get_goalie_spray_chart(request: HttpRequest, goalie_id: int, filters: Goalie
         events = events.prefetch_related('event_name').filter(event_name__name=EventName.SHOT, shot_type_id=filters.shot_type_id)
 
     return events.all()
+
+@router.get("/goalie/{goalie_id}/team-seasons", response=list[GoalieTeamSeasonOut], tags=[ApiDocTags.PLAYER, ApiDocTags.STATS])
+def get_goalie_team_seasons(request: HttpRequest, goalie_id: int, limit: int = 3):
+    return GoalieTeamSeason.objects.prefetch_related('season').filter(goalie_id=goalie_id)\
+        .order_by('-season__start_date')[:limit]
 
 @router.get('/player/list', response=list[PlayerOut], tags=[ApiDocTags.PLAYER])
 def get_players(request: HttpRequest, team_id: int | None = None):

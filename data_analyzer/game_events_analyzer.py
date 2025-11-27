@@ -72,6 +72,7 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
     season_id = event['game_season_id']
 
     is_add_goalie_season = False
+    is_add_goalie_team_season = False
     is_add_goalie_game = False
     if event['goalie_id'] is not None:
         goalie_season = session.scalar(select(m.GoalieSeason).where(
@@ -79,6 +80,12 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
         if goalie_season is None:
             goalie_season = m.init_goalie_season(season_id, event['goalie_id'])
             is_add_goalie_season = True
+        goalie_team_season = session.scalar(select(m.GoalieTeamSeason).where(
+            m.GoalieTeamSeason.season_id == season_id, m.GoalieTeamSeason.goalie_id == event['goalie_id'],
+            m.GoalieTeamSeason.team_id == event['team_id']))
+        if goalie_team_season is None:
+            goalie_team_season = m.init_goalie_team_season(season_id, event['goalie_id'], event['team_id'])
+            is_add_goalie_team_season = True
         goalie_game = session.scalar(select(m.GameGoalie).where(
             m.GameGoalie.game_id == event['game_id'], m.GameGoalie.goalie_id == event['goalie_id']))
         if goalie_game is None:
@@ -86,6 +93,7 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
             is_add_goalie_game = True
     else:
         goalie_season = None
+        goalie_team_season = None
         goalie_game = None
 
     is_add_player_season = False
@@ -136,7 +144,8 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
             return form_missing_person_message("goalie", event)
 
         goalie_season.shots_on_goal += diff
-        # goalie_game.shots_on_goal += diff
+        goalie_team_season.shots_on_goal += diff
+        goalie_game.shots_on_goal += diff
         player_season.shots_on_goal += diff
         player_game.shots_on_goal += diff
 
@@ -154,17 +163,20 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
                 player_2_game.assists += diff
 
             goalie_season.goals_against += diff
+            goalie_team_season.goals_against += diff
             goalie_game.goals_against += diff
 
             if event['goal_type'] == "Short Handed":
                 player_season.short_handed_goals += diff
                 player_game.short_handed_goals += diff
                 goalie_season.short_handed_goals_against += diff
+                goalie_team_season.short_handed_goals_against += diff
                 goalie_game.short_handed_goals_against += diff
             elif event['goal_type'] == "Power Play":
                 player_season.power_play_goals += diff
                 player_game.power_play_goals += diff
                 goalie_season.power_play_goals_against += diff
+                goalie_team_season.power_play_goals_against += diff
                 goalie_game.power_play_goals_against += diff
 
         elif event['shot_type'] == "blocked":
@@ -178,6 +190,7 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
         elif event['shot_type'] == "save":
 
             goalie_season.saves += diff
+            goalie_team_season.saves += diff
             goalie_game.saves += diff
 
     elif event['event_name'] == "turnover":
@@ -212,6 +225,7 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
 
         if goalie_season is not None:
             goalie_season.penalty_minutes += penalty_minutes
+            goalie_team_season.penalty_minutes += penalty_minutes
             goalie_game.penalty_minutes += penalty_minutes
 
         if player_season is not None:
@@ -228,6 +242,9 @@ def analyze_game_event(event: dict[str, Any], is_add: bool) -> str | None:
 
     if is_add_goalie_season:
         session.add(goalie_season)
+        session.flush()
+    if is_add_goalie_team_season:
+        session.add(goalie_team_season)
         session.flush()
     if is_add_goalie_game:
         session.add(goalie_game)
@@ -263,6 +280,8 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
     home_team_id = game['home_team_id']
     away_team_id = game['away_team_id']
 
+    # region Get home_team_season, away_team_season.
+
     home_team_season = session.scalar(select(m.TeamSeason).where(
         m.TeamSeason.season_id == season_id, m.TeamSeason.team_id == home_team_id))
     away_team_season = session.scalar(select(m.TeamSeason).where(
@@ -277,6 +296,8 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
         away_team_season = m.init_team_season(season_id, away_team_id)
         is_add_away_team_season = True
 
+    # endregion
+
     home_goalies_on_ice = ([game['home_start_goalie_id']] +
         [evt['goalie_id'] for evt in game['events'] if (evt['event_name'] == "goalie change" and evt['team_id'] == game['home_team_id'])])
     away_goalies_on_ice = ([game['away_start_goalie_id']] +
@@ -290,12 +311,19 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
         # region Get home_goalie_season, home_goalie_game.
 
         is_add_home_goalie_season = False
+        is_add_home_goalie_team_season = False
         is_add_home_goalie_game = False
         home_goalie_season = session.scalar(select(m.GoalieSeason).where(
             m.GoalieSeason.season_id == season_id, m.GoalieSeason.goalie_id == game_home_goalie_id))
         if home_goalie_season is None:
             home_goalie_season = m.init_goalie_season(season_id, game_home_goalie_id)
             is_add_home_goalie_season = True
+        home_goalie_team_season = session.scalar(select(m.GoalieTeamSeason).where(
+            m.GoalieTeamSeason.season_id == season_id, m.GoalieTeamSeason.goalie_id == game_home_goalie_id,
+            m.GoalieTeamSeason.team_id == home_team_id))
+        if home_goalie_team_season is None:
+            home_goalie_team_season = m.init_goalie_team_season(season_id, game_home_goalie_id, home_team_id)
+            is_add_home_goalie_team_season = True
         home_goalie_game = session.scalar(select(m.GameGoalie).where(
             m.GameGoalie.game_id == game['id'], m.GameGoalie.goalie_id == game_home_goalie_id))
         if home_goalie_game is None:
@@ -306,17 +334,23 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
 
         if home_goalie_season.goalie_id in home_goalies_on_ice:
             home_goalie_season.games_played += diff
+            home_goalie_team_season.games_played += diff
 
         if game['away_goals'] > game['home_goals'] and home_goalie_season.goalie_id == game['home_start_goalie_id']:
             # The goalie that started the game in net gets the loss if the team loses the game.
             home_goalie_season.losses += diff
+            home_goalie_team_season.losses += diff
 
         elif game['away_goals'] < game['home_goals'] and home_goalie_season.goalie_id == last_home_goalie_id:
             # The goalie that finishes the game in net gets the win if the team wins the game.
             home_goalie_season.wins += diff
+            home_goalie_team_season.wins += diff
 
         if is_add_home_goalie_season:
             session.add(home_goalie_season)
+            session.flush()
+        if is_add_home_goalie_team_season:
+            session.add(home_goalie_team_season)
             session.flush()
         if is_add_home_goalie_game:
             session.add(home_goalie_game)
@@ -327,12 +361,19 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
         # region Get away_goalie_season, away_goalie_game.
 
         is_add_away_goalie_season = False
+        is_add_away_goalie_team_season = False
         is_add_away_goalie_game = False
         away_goalie_season = session.scalar(select(m.GoalieSeason).where(
             m.GoalieSeason.season_id == season_id, m.GoalieSeason.goalie_id == game_away_goalie_id))
         if away_goalie_season is None:
             away_goalie_season = m.init_goalie_season(season_id, game_away_goalie_id)
             is_add_away_goalie_season = True
+        away_goalie_team_season = session.scalar(select(m.GoalieTeamSeason).where(
+            m.GoalieTeamSeason.season_id == season_id, m.GoalieTeamSeason.goalie_id == game_away_goalie_id,
+            m.GoalieTeamSeason.team_id == away_team_id))
+        if away_goalie_team_season is None:
+            away_goalie_team_season = m.init_goalie_team_season(season_id, game_away_goalie_id, away_team_id)
+            is_add_away_goalie_team_season = True
         away_goalie_game = session.scalar(select(m.GameGoalie).where(
             m.GameGoalie.game_id == game['id'], m.GameGoalie.goalie_id == game_away_goalie_id))
         if away_goalie_game is None:
@@ -343,17 +384,23 @@ def analyze_game(game: dict[str, Any], is_add: bool) -> str | None:
 
         if away_goalie_season.goalie_id in away_goalies_on_ice:
             away_goalie_season.games_played += diff
+            away_goalie_team_season.games_played += diff
 
         if game['home_goals'] > game['away_goals'] and away_goalie_season.goalie_id == game['away_start_goalie_id']:
             # The goalie that started the game in net gets the loss if the team loses the game.
             away_goalie_season.losses += diff
+            away_goalie_team_season.losses += diff
 
         elif game['home_goals'] < game['away_goals'] and away_goalie_season.goalie_id == last_away_goalie_id:
             # The goalie that finishes the game in net gets the win if the team wins the game.
             away_goalie_season.wins += diff
+            away_goalie_team_season.wins += diff
 
         if is_add_away_goalie_season:
             session.add(away_goalie_season)
+            session.flush()
+        if is_add_away_goalie_team_season:
+            session.add(away_goalie_team_season)
             session.flush()
         if is_add_away_goalie_game:
             session.add(away_goalie_game)

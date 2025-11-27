@@ -264,6 +264,52 @@ class GoalieSeason(models.Model):
     def __str__(self):
         return f'{str(self.goalie)} - {self.season.name}'
 
+class GoalieTeamSeason(models.Model):
+
+    goalie = models.ForeignKey(Goalie, on_delete=models.CASCADE)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE)
+    season = models.ForeignKey(Season, on_delete=models.RESTRICT)
+
+    shots_on_goal = models.IntegerField(default=0)
+    saves = models.IntegerField(default=0)
+    goals_against = models.IntegerField(default=0)
+    games_played = models.IntegerField(default=0)
+    wins = models.IntegerField(default=0)
+    losses = models.IntegerField(default=0)
+    goals = models.IntegerField(default=0)
+    assists = models.IntegerField(default=0)
+    penalty_minutes = models.DurationField(default=datetime.timedelta(0))
+
+    short_handed_goals_against = models.IntegerField("SHGA", default=0)
+    """SHGA field."""
+
+    power_play_goals_against = models.IntegerField("PPGA", default=0)
+    """PPGA field."""
+
+    save_percents = models.GeneratedField(
+        expression=Case(When(Q(saves__gt=0) | Q(goals_against__gt=0), then=((F('saves') / (F('saves') + F('goals_against'))) * 100)),
+                        default=Value(0), output_field=models.FloatField()),
+        output_field=models.FloatField(),
+        db_persist=True,
+        verbose_name="Save %")
+
+    shots_on_goal_per_game = models.GeneratedField(
+        expression=Case(When(games_played__gt=0, then=(F('shots_on_goal') / F('games_played'))),
+                        default=Value(0), output_field=models.FloatField()),
+        output_field=models.FloatField(),
+        db_persist=True)
+
+    points = models.GeneratedField(
+        expression=F('goals') + F('assists'),
+        output_field=models.IntegerField(),
+        db_persist=True)
+
+    class Meta:
+        db_table = "goalie_team_seasons"
+
+    def __str__(self):
+        return f'{str(self.goalie)} - {self.team.name} - {self.season.name}'
+
 class Arena(models.Model):
 
     name = models.CharField(max_length=150)
@@ -484,6 +530,7 @@ class GameGoalie(models.Model):
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE)
     goalie = models.ForeignKey(Goalie, on_delete=models.RESTRICT)
+    shots_on_goal = models.IntegerField(default=0)
     goals_against = models.IntegerField(default=0)
     saves = models.IntegerField(default=0)
 
