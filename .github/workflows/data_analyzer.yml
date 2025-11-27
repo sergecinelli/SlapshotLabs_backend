@@ -46,22 +46,11 @@ jobs:
 
 
   deploy-to-ec2:
-    if: false
+   # if: false
     needs: build-and-push
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo (for docker-compose.yml)
-        uses: actions/checkout@v4
-
-      - name: Copy compose file to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "data_analyzer/docker-compose.yml"
-          target: "~/app/"
 
       - name: SSH to EC2 and deploy
         uses: appleboy/ssh-action@v1.2.0
@@ -74,7 +63,7 @@ jobs:
 
             echo "Logging into ECR from EC2..."
             aws ecr get-login-password --region ${{ vars.AWS_REGION }} \
-              | docker login --username AWS --password-stdin ${{ vars.AWS_ACCOUNT }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
+              | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
 
             echo "Pulling latest image..."
             docker compose pull
