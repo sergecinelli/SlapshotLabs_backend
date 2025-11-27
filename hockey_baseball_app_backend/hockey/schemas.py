@@ -81,6 +81,7 @@ class GoalieSeasonOut(Schema):
     games_played: int
     wins: int
     losses: int
+    ties: int
     goals: int
     assists: int
     penalty_minutes: datetime.timedelta
