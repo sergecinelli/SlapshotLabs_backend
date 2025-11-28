@@ -23,8 +23,8 @@ from hockey.utils.constants import (GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, 
                                     ApiDocTags)
 from hockey.utils.event_analysis_serializer import serialize_game, serialize_game_event
 
-from .schemas import (ArenaOut, ArenaRinkOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut,
-                     GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
+from .schemas import (ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut,
+                      GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut,
                       GameSprayChartFilters, GameTypeOut, GameTypeRecordOut, GoalieBaseOut, GoalieSeasonOut,
                       GoalieSeasonsGet, GoalieSprayChartFilters, GoalieTeamSeasonOut, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn,
@@ -384,10 +384,10 @@ def get_arena_rinks(request: HttpRequest):
     arena_rinks = ArenaRink.objects.all()
     return arena_rinks
 
-@router.get('/arena-rink/{arena_rink_id}', response=ArenaRinkOut, tags=[ApiDocTags.GAME])
+@router.get('/arena-rink/{arena_rink_id}', response=ArenaRinkExtendedOut, tags=[ApiDocTags.GAME])
 def get_arena_rink(request: HttpRequest, arena_rink_id: int):
     arena_rink = get_object_or_404(ArenaRink, id=arena_rink_id)
-    return arena_rink
+    return ArenaRinkExtendedOut(id=arena_rink.id, name=arena_rink.name, arena_id=arena_rink.arena_id, arena_name=arena_rink.arena.name)
 
 @router.get('/game-type/list', response=list[GameTypeOut], tags=[ApiDocTags.GAME])
 def get_game_types(request: HttpRequest):

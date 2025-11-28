@@ -243,6 +243,10 @@ class ArenaRinkIn(Schema):
 class ArenaRinkOut(ArenaRinkIn):
     id: int
 
+class ArenaRinkExtendedOut(ArenaRinkOut):
+    id: int
+    arena_name: str
+
 class DefensiveZoneExitIn(Schema):
     icing: int
     skate_out: int
