@@ -384,6 +384,11 @@ def get_arena_rinks(request: HttpRequest):
     arena_rinks = ArenaRink.objects.all()
     return arena_rinks
 
+@router.get('/arena-rink/{arena_rink_id}', response=ArenaRinkOut, tags=[ApiDocTags.GAME])
+def get_arena_rink(request: HttpRequest, arena_rink_id: int):
+    arena_rink = get_object_or_404(ArenaRink, id=arena_rink_id)
+    return arena_rink
+
 @router.get('/game-type/list', response=list[GameTypeOut], tags=[ApiDocTags.GAME])
 def get_game_types(request: HttpRequest):
     game_types = GameType.objects.all()

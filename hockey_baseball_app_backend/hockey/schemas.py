@@ -368,6 +368,13 @@ class GoalieBaseOut(Schema):
     last_name: str
 
 class GameGoalieOut(GoalieBaseOut):
+    season_name: str
+    date: datetime.date
+    team_id: int
+    team_name: str
+    team_vs_id: int
+    team_vs_name: str
+    score: str
     goals_against: int
     shots_against: int
     saves: int
@@ -379,6 +386,13 @@ class PlayerBaseOut(Schema):
     last_name: str
 
 class GamePlayerOut(PlayerBaseOut):
+    season_name: str
+    date: datetime.date
+    team_id: int
+    team_name: str
+    team_vs_id: int
+    team_vs_name: str
+    score: str
     goals: int
     assists: int
     shots_on_goal: int
@@ -386,6 +400,8 @@ class GamePlayerOut(PlayerBaseOut):
     penalty_minutes: datetime.timedelta
     turnovers: int
     faceoffs: int
+    faceoffs_won: int
+    faceoff_win_percents: int = Field(0, description="Faceoff Win %.")
     points: int
 
 class GamePlayersIn(Schema):

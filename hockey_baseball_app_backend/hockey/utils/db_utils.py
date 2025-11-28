@@ -133,8 +133,24 @@ def form_player_out(player: Player, season: Season) -> PlayerOut:
     return player_out
 
 def form_game_goalie_out(game_goalie: GameGoalie) -> GameGoalieOut:
+    game = game_goalie.game
+    team = (game.home_team if game_goalie.goalie in game.home_goalies.all() else game.away_team)
+    team_vs = (game.away_team if team == game.home_team else game.home_team)
+    if (team == game.home_team and game.home_goals > game.away_goals) or (team == game.away_team and game.away_goals > game.home_goals):
+        result = "W"
+    elif (team == game.away_team and game.away_goals < game.home_goals) or (team == game.home_team and game.home_goals < game.away_goals):
+        result = "L"
+    else:
+        result = "T"
     return GameGoalieOut(
         id=game_goalie.goalie_id,
+        season_name=game.season.name,
+        date=game.date,
+        team_id=team.id,
+        team_name=team.name,
+        team_vs_id=team_vs.id,
+        team_vs_name=team_vs.name,
+        score=f"({result}) {game.home_goals} - {game.away_goals}",
         first_name=game_goalie.goalie.player.first_name,
         last_name=game_goalie.goalie.player.last_name,
         goals_against=game_goalie.goals_against,
@@ -144,8 +160,24 @@ def form_game_goalie_out(game_goalie: GameGoalie) -> GameGoalieOut:
     )
 
 def form_game_player_out(game_player: GamePlayer) -> GamePlayerOut:
+    game = game_player.game
+    team = (game.home_team if game_player.player in game.home_players.all() else game.away_team)
+    team_vs = (game.away_team if team == game.home_team else game.home_team)
+    if (team == game.home_team and game.home_goals > game.away_goals) or (team == game.away_team and game.away_goals > game.home_goals):
+        result = "W"
+    elif (team == game.away_team and game.away_goals < game.home_goals) or (team == game.home_team and game.home_goals < game.away_goals):
+        result = "L"
+    else:
+        result = "T"
     return GamePlayerOut(
         id=game_player.player_id,
+        season_name=game.season.name,
+        date=game.date,
+        team_id=team.id,
+        team_name=team.name,
+        team_vs_id=team_vs.id,
+        team_vs_name=team_vs.name,
+        score=f"({result}) {game.home_goals} - {game.away_goals}",
         first_name=game_player.player.first_name,
         last_name=game_player.player.last_name,
         goals=game_player.goals,
@@ -155,6 +187,8 @@ def form_game_player_out(game_player: GamePlayer) -> GamePlayerOut:
         penalty_minutes=game_player.penalty_minutes,
         turnovers=game_player.turnovers,
         faceoffs=game_player.faceoffs,
+        faceoffs_won=game_player.faceoffs_won,
+        faceoff_win_percents=(game_player.faceoffs_won / game_player.faceoffs) * 100 if game_player.faceoffs > 0 else 0,
         points=game_player.points
     )
 
