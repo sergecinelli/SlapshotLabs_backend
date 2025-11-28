@@ -135,8 +135,8 @@ def form_player_out(player: Player, season: Season) -> PlayerOut:
 def form_game_goalie_out(game_goalie: GameGoalie) -> GameGoalieOut:
     return GameGoalieOut(
         id=game_goalie.goalie_id,
-        first_name=game_goalie.goalie.first_name,
-        last_name=game_goalie.goalie.last_name,
+        first_name=game_goalie.goalie.player.first_name,
+        last_name=game_goalie.goalie.player.last_name,
         goals_against=game_goalie.goals_against,
         shots_against=game_goalie.shots_on_goal,
         saves=game_goalie.saves,
