@@ -1,7 +1,7 @@
 from typing import Optional
-from ninja import Schema
+from ninja import Field, Schema
 
-from users.utils.roles import Role
+from users.utils.roles import Role, get_constant_class_str_description
 
 class UserIn(Schema):
     email: str
@@ -19,7 +19,7 @@ class UserOut(Schema):
     city: str
     street: str
     postal_code: str
-    role_name: str = Role.PLAYER.name
+    role_name: str = Field(..., description=get_constant_class_str_description(Role))
     team_id: int | None = None
 
     @staticmethod
