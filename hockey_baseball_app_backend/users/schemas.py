@@ -1,7 +1,7 @@
 from typing import Optional
 from ninja import Field, Schema
 
-from users.utils.roles import Role, get_constant_class_str_description
+from users.utils.roles import Role, get_constant_class_int_description, get_constant_class_str_description
 
 class UserIn(Schema):
     email: str
@@ -19,8 +19,13 @@ class UserOut(Schema):
     city: str
     street: str
     postal_code: str
+    role_id: int = Field(..., description=get_constant_class_int_description(Role))
     role_name: str = Field(..., description=get_constant_class_str_description(Role))
     team_id: int | None = None
+
+    @staticmethod
+    def resolve_role_id(obj) -> int:
+        return obj.role
 
     @staticmethod
     def resolve_role_name(obj) -> str:

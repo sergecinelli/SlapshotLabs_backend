@@ -29,5 +29,8 @@ def is_user_player(user) -> bool:
 def get_constant_class_int_choices(constant_class) -> list[tuple[int, str]]:
     return sorted([(num_name.id, num_name.name) for _, num_name in inspect.getmembers(constant_class, lambda x: isinstance(x, IdName))], key=lambda x: x[0])
 
+def get_constant_class_int_description(constant_class) -> str:
+    return ", ".join(sorted([f'{num_name.id} - {num_name.name}' for _, num_name in inspect.getmembers(constant_class, lambda x: isinstance(x, IdName))]))
+
 def get_constant_class_str_description(constant_class) -> str:
     return ", ".join(sorted([num_name.name for _, num_name in inspect.getmembers(constant_class, lambda x: isinstance(x, IdName))], key=lambda x: x[0]))

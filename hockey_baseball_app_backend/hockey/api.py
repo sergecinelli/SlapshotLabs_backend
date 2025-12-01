@@ -311,7 +311,7 @@ def add_team(request: HttpRequest, data: TeamIn, logo: File[UploadedFile] = None
 
 @router.patch("/team/{team_id}", response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.TEAM])
 def update_team(request: HttpRequest, team_id: int, data: PatchDict[TeamIn], logo: File[UploadedFile] = None):
-    if not is_user_admin(request.user):
+    if not is_user_coach(request.user, team_id):
         return 403, {"message": "You are not authorized to update this team."}
     team = get_object_or_404(Team, id=team_id)
     for attr, value in data.items():
