@@ -26,6 +26,9 @@ def get_game_current_goalies(game: Game) -> tuple[int, int]:
         away_goalie = game.away_start_goalie
     return (home_goalie.player_id, away_goalie.player_id)
 
+def get_team_choices() -> list[tuple[int, str]]:
+    return [(team.id, team.name) for team in Team.objects.filter(is_archived=False).order_by('name').all()]
+
 # region No goalie
 
 def is_no_goalie_object(player: Any) -> bool:

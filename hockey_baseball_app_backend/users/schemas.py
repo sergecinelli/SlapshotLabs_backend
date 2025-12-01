@@ -1,6 +1,8 @@
 from typing import Optional
 from ninja import Schema
 
+from users.utils.roles import Role
+
 class UserIn(Schema):
     email: str
     first_name: str
@@ -17,6 +19,12 @@ class UserOut(Schema):
     city: str
     street: str
     postal_code: str
+    role_name: str = Role.PLAYER.name
+    team_id: int | None = None
+
+    @staticmethod
+    def resolve_role_name(obj) -> str:
+        return Role.get_name_by_id(obj.role)
 
 class UserEdit(Schema):
     email: Optional[str] = None

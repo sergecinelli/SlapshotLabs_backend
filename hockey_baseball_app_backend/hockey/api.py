@@ -22,6 +22,7 @@ from hockey.utils.constants import (GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, 
                                     EventName, GameEventSystemStatus, GameStatus, GoalType, get_constant_class_int_choices,
                                     ApiDocTags)
 from hockey.utils.event_analysis_serializer import serialize_game, serialize_game_event
+from users.utils.roles import is_user_admin, is_user_coach
 
 from .schemas import (ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut,
                       GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
@@ -81,8 +82,10 @@ def get_goalie_photo(request: HttpRequest, goalie_id: int):
     goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
     return FileResponse(goalie.photo.open())
 
-@router.post('/goalie', response={200: ObjectId, 400: Message, 503: Message}, tags=[ApiDocTags.PLAYER])
+@router.post('/goalie', response={200: ObjectId, 400: Message, 403: Message, 503: Message}, tags=[ApiDocTags.PLAYER])
 def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] = None):
+    if not is_user_coach(request.user, data.team_id):
+        return 403, {"message": "You are not authorized to add a goalie."}
     if is_no_goalie_object(data):
         return 400, {"message": "This goalie is used in case of no goalie in net, so it cannot be added."}
     try:
@@ -98,6 +101,8 @@ def add_goalie(request: HttpRequest, data: GoalieIn, photo: File[UploadedFile] =
 @router.patch("/goalie/{goalie_id}", response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.PLAYER])
 def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn], photo: File[UploadedFile] = None):
     goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
+    if not is_user_coach(request.user, goalie.team_id):
+        return 403, {"message": "You are not authorized to update this goalie."}
     if is_no_goalie_object(goalie):
         return 403, {"message": "This goalie is used in case of no goalie in net, so it cannot be updated."}
     old_team_id = goalie.team_id
@@ -121,6 +126,8 @@ def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn
 @router.delete("/goalie/{goalie_id}", response={200: Message, 403: Message}, tags=[ApiDocTags.PLAYER])
 def delete_goalie(request: HttpRequest, goalie_id: int):
     goalie = get_object_or_404(Player, id=goalie_id, position__name=GOALIE_POSITION_NAME)
+    if not is_user_coach(request.user, goalie.team_id):
+        return 403, {"message": "You are not authorized to delete this goalie."}
     if is_no_goalie_object(goalie):
         return 403, {"message": "This goalie is used in case of no goalie in net, so they cannot be deleted."}
     try:
@@ -179,8 +186,10 @@ def get_player_photo(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
     return FileResponse(player.photo.open())
 
-@router.post('/player', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.PLAYER])
+@router.post('/player', response={200: ObjectId, 400: Message, 403: Message}, tags=[ApiDocTags.PLAYER])
 def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] = None):
+    if not is_user_coach(request.user, data.team_id):
+        return 403, {"message": "You are not authorized to add a player."}
     try:
         if data.position_id == PlayerPosition.objects.get(name=GOALIE_POSITION_NAME).id or is_no_goalie_object(data):
             return 400, {"message": "Goalies are not added through this endpoint."}
@@ -191,11 +200,13 @@ def add_player(request: HttpRequest, data: PlayerIn, photo: File[UploadedFile] =
         return resp.entry_already_exists("Player", str(e))
     return {"id": player.id}
 
-@router.patch("/player/{player_id}", response={204: None, 400: Message}, tags=[ApiDocTags.PLAYER])
+@router.patch("/player/{player_id}", response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.PLAYER])
 def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn], photo: File[UploadedFile] = None):
     if data.get('position_id') == PlayerPosition.objects.get(name=GOALIE_POSITION_NAME).id:
         return 400, {"message": "Goalies are not updated through this endpoint."}
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
+    if not is_user_coach(request.user, player.team_id):
+        return 403, {"message": "You are not authorized to update this player."}
     old_team_id = player.team_id
     for attr, value in data.items():
         setattr(player, attr, value)
@@ -217,6 +228,8 @@ def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn
 @router.delete("/player/{player_id}", response={200: Message, 403: Message}, tags=[ApiDocTags.PLAYER])
 def delete_player(request: HttpRequest, player_id: int):
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
+    if not is_user_coach(request.user, player.team_id):
+        return 403, {"message": "You are not authorized to delete this player."}
     try:
         player.delete()
     except RestrictedError as e:
@@ -282,8 +295,10 @@ def get_team_logo(request: HttpRequest, team_id: int):
     team = get_object_or_404(Team, id=team_id)
     return FileResponse(team.logo.open())
 
-@router.post('/team', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.TEAM])
+@router.post('/team', response={200: ObjectId, 400: Message, 403: Message}, tags=[ApiDocTags.TEAM])
 def add_team(request: HttpRequest, data: TeamIn, logo: File[UploadedFile] = None):
+    if not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to add a team."}
     try:
         with transaction.atomic(using='hockey'):
             team = Team(**data.dict())
@@ -294,8 +309,10 @@ def add_team(request: HttpRequest, data: TeamIn, logo: File[UploadedFile] = None
         return resp.entry_already_exists("Team")
     return {"id": team.id}
 
-@router.patch("/team/{team_id}", response={204: None, 400: Message}, tags=[ApiDocTags.TEAM])
+@router.patch("/team/{team_id}", response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.TEAM])
 def update_team(request: HttpRequest, team_id: int, data: PatchDict[TeamIn], logo: File[UploadedFile] = None):
+    if not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to update this team."}
     team = get_object_or_404(Team, id=team_id)
     for attr, value in data.items():
         setattr(team, attr, value)
@@ -307,8 +324,10 @@ def update_team(request: HttpRequest, team_id: int, data: PatchDict[TeamIn], log
         return resp.entry_already_exists("Team")
     return 204, None
 
-@router.delete("/team/{team_id}", response={200: Message}, tags=[ApiDocTags.TEAM])
+@router.delete("/team/{team_id}", response={200: Message, 403: Message}, tags=[ApiDocTags.TEAM])
 def delete_team(request: HttpRequest, team_id: int):
+    if not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to delete this team."}
     team = get_object_or_404(Team, id=team_id)
     try:
         with transaction.atomic(using='hockey'):
@@ -330,8 +349,10 @@ def get_season(request: HttpRequest, season_id: int):
     season = get_object_or_404(Season, id=season_id)
     return season
 
-@router.post('/season', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.TEAM])
+@router.post('/season', response={200: ObjectId, 400: Message, 403: Message}, tags=[ApiDocTags.TEAM])
 def add_season(request: HttpRequest, data: SeasonIn):
+    if not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to add a season."}
     try:
         if not re.match(r'^\d{4} / \d{4}$', data.name):
             return 400, {"message": "Season name must be in the format 'YYYY / YYYY'."}
@@ -340,8 +361,10 @@ def add_season(request: HttpRequest, data: SeasonIn):
         return resp.entry_already_exists("Season", str(e))
     return {"id": season.id}
 
-@router.patch("/season/{season_id}", response={204: None}, tags=[ApiDocTags.TEAM])
+@router.patch("/season/{season_id}", response={204: None, 403: Message}, tags=[ApiDocTags.TEAM])
 def update_season(request: HttpRequest, season_id: int, data: PatchDict[SeasonIn]):
+    if not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to update this season."}
     if not re.match(r'^\d{4} / \d{4}$', data.name):
         return 400, {"message": "Season name must be in the format 'YYYY / YYYY'."}
     season = get_object_or_404(Season, id=season_id)
@@ -350,8 +373,10 @@ def update_season(request: HttpRequest, season_id: int, data: PatchDict[SeasonIn
     season.save()
     return 204, None
 
-@router.delete("/season/{season_id}", response={204: None}, tags=[ApiDocTags.TEAM])
+@router.delete("/season/{season_id}", response={204: None, 403: Message}, tags=[ApiDocTags.TEAM])
 def delete_season(request: HttpRequest, season_id: int):
+    if not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to delete this season."}
     season = get_object_or_404(Season, id=season_id)
     season.delete()
     return 204, None
@@ -480,8 +505,10 @@ def get_game_extra(request: HttpRequest, game_id: int):
                            date=game.date, time=game.time, season_id=game.season_id, rink_id=game.rink_id, arena_id=game.arena_id,
                            home_team_game_type_record=home_team_record, away_team_game_type_record=away_team_record)
 
-@router.post('/game', response={200: GameOut, 400: Message, 503: Message}, tags=[ApiDocTags.GAME])
+@router.post('/game', response={200: GameOut, 400: Message, 403: Message, 503: Message}, tags=[ApiDocTags.GAME])
 def add_game(request: HttpRequest, data: GameIn):
+    if not is_user_coach(request.user, data.home_team_id) and not is_user_coach(request.user, data.away_team_id):
+        return 403, {"message": "You are not authorized to add a game."}
     try:
         game_season = get_current_season(data.date)
         if game_season is None:
@@ -536,9 +563,11 @@ def add_game(request: HttpRequest, data: GameIn):
     game = Game.objects.get(id=game.id)
     return game
 
-@router.patch("/game/{game_id}", response={204: None, 400: Message}, tags=[ApiDocTags.GAME])
+@router.patch("/game/{game_id}", response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.GAME])
 def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
     game = get_object_or_404(Game, id=game_id)
+    if not is_user_coach(request.user, game.home_team_id) and not is_user_coach(request.user, game.away_team_id):
+        return 403, {"message": "You are not authorized to update this game."}
     game_status = game.status
     data_status = data.get('status')
     if data_status is not None and data_status not in [status[0] for status in get_constant_class_int_choices(GameStatus)]:
@@ -591,9 +620,11 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
         return 400, {"message": str(e)}
     return 204, None
 
-@router.delete("/game/{game_id}", response={204: None}, tags=[ApiDocTags.GAME])
+@router.delete("/game/{game_id}", response={204: None, 403: Message}, tags=[ApiDocTags.GAME])
 def delete_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
+    if not is_user_coach(request.user, game.home_team_id) and not is_user_coach(request.user, game.away_team_id):
+        return 403, {"message": "You are not authorized to delete this game."}
     with transaction.atomic(using='hockey'):
         if game.status == GameStatus.GAME_OVER.id:
             GameEventsAnalysisQueue.objects.create(payload=serialize_game(game), status=GameEventSystemStatus.DEPRECATED)
@@ -605,9 +636,11 @@ def get_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id: i
     defensive_zone_exit = get_object_or_404(DefensiveZoneExit, id=defensive_zone_exit_id)
     return defensive_zone_exit
 
-@router.patch("/game/defensive-zone-exit/{defensive_zone_exit_id}", response={204: None}, tags=[ApiDocTags.GAME])
+@router.patch("/game/defensive-zone-exit/{defensive_zone_exit_id}", response={204: None, 403: Message}, tags=[ApiDocTags.GAME])
 def update_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id: int, data: PatchDict[DefensiveZoneExitIn]):
     defensive_zone_exit = get_object_or_404(DefensiveZoneExit, id=defensive_zone_exit_id)
+    if not is_user_coach(request.user, defensive_zone_exit.game.home_team_id) and not is_user_coach(request.user, defensive_zone_exit.game.away_team_id):
+        return 403, {"message": "You are not authorized to update this game."}
     for attr, value in data.items():
         setattr(defensive_zone_exit, attr, value)
     defensive_zone_exit.save()
@@ -618,9 +651,11 @@ def get_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_id:
     offensive_zone_entry = get_object_or_404(OffensiveZoneEntry, id=offensive_zone_entry_id)
     return offensive_zone_entry
 
-@router.patch("/game/offensive-zone-entry/{offensive_zone_entry_id}", response={204: None}, tags=[ApiDocTags.GAME])
+@router.patch("/game/offensive-zone-entry/{offensive_zone_entry_id}", response={204: None, 403: Message}, tags=[ApiDocTags.GAME])
 def update_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_id: int, data: PatchDict[OffensiveZoneEntryIn]):
     offensive_zone_entry = get_object_or_404(OffensiveZoneEntry, id=offensive_zone_entry_id)
+    if not is_user_coach(request.user, offensive_zone_entry.game.home_team_id) and not is_user_coach(request.user, offensive_zone_entry.game.away_team_id):
+        return 403, {"message": "You are not authorized to update this game."}
     for attr, value in data.items():
         setattr(offensive_zone_entry, attr, value)
     offensive_zone_entry.save()
@@ -726,9 +761,15 @@ def get_game_event(request: HttpRequest, game_event_id: int):
     game_event = get_object_or_404(GameEvents, id=game_event_id)
     return game_event
 
-@router.post('/game-event', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.GAME_EVENT])
+@router.post('/game-event', response={200: ObjectId, 400: Message, 403: Message}, tags=[ApiDocTags.GAME_EVENT])
 def add_game_event(request: HttpRequest, data: GameEventIn):
     try:
+
+        game: Game = get_object_or_404(Game, id=data.game_id)
+
+        if not is_user_coach(request.user, game.home_team_id) and not is_user_coach(request.user, game.away_team_id):
+            return 403, {"message": "You are not authorized to add a game event."}
+
         with transaction.atomic(using='hockey'):
 
             event_name = GameEventName.objects.filter(id=data.event_name_id).first()
@@ -740,8 +781,6 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
                 raise ValueError("Please specify goalie ID and/or player ID(s).")
 
             data_new = data.dict()
-
-            game: Game = get_object_or_404(Game, id=data.game_id)
 
             if game.status == GameStatus.GAME_OVER.id:
                 old_game_stats = serialize_game(game)
@@ -798,11 +837,14 @@ def add_game_event(request: HttpRequest, data: GameEventIn):
         return resp.entry_already_exists("Game event", str(e))
     return {"id": game_event.id}
 
-@router.patch("/game-event/{game_event_id}", response={204: None, 400: Message}, tags=[ApiDocTags.GAME_EVENT])
+@router.patch("/game-event/{game_event_id}", response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.GAME_EVENT])
 def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[GameEventIn]):
 
     game_event = get_object_or_404(GameEvents, id=game_event_id)
     game: Game = game_event.game
+
+    if not is_user_coach(request.user, game.home_team_id) and not is_user_coach(request.user, game.away_team_id):
+        return 403, {"message": "You are not authorized to update this game event."}
 
     try:
         with transaction.atomic(using='hockey'):
@@ -900,10 +942,13 @@ def update_game_event(request: HttpRequest, game_event_id: int, data: PatchDict[
 
     return 204, None
 
-@router.delete("/game-event/{game_event_id}", response={204: None}, tags=[ApiDocTags.GAME_EVENT])
+@router.delete("/game-event/{game_event_id}", response={204: None, 403: Message}, tags=[ApiDocTags.GAME_EVENT])
 def delete_game_event(request: HttpRequest, game_event_id: int):
     game_event = get_object_or_404(GameEvents, id=game_event_id)
     game: Game = game_event.game
+
+    if not is_user_coach(request.user, game.home_team_id) and not is_user_coach(request.user, game.away_team_id):
+        return 403, {"message": "You are not authorized to delete this game event."}
 
     if game.status == GameStatus.GAME_OVER.id:
         old_game_stats = serialize_game(game)
@@ -992,12 +1037,14 @@ def add_highlight_reel(request: HttpRequest, data: HighlightReelIn):
         return 400, {"message": str(e)}
     return {"id": highlight_reel.id}
 
-@router.put('/highlight-reels/{highlight_reel_id}', response={204: None, 400: Message},
+@router.put('/highlight-reels/{highlight_reel_id}', response={204: None, 400: Message, 403: Message},
     description=("Update a highlight reel.\n\n"
                  "If id is provided for a highlight, it will be updated, otherwise a new highlight will be created.\n\n"
                  "Not provided highlights will be deleted."), tags=[ApiDocTags.HIGHLIGHT_REEL])
 def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: HighlightReelUpdateIn):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
+    if highlight_reel.user_id != request.user.id and not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to update this highlight reel."}
     highlight_reel.name = data.name
     highlight_reel.description = data.description
     keep_highlights = []
@@ -1035,9 +1082,11 @@ def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: Hi
         return 400, {"message": str(e)}
     return 204, None
 
-@router.delete('/highlight-reels/{highlight_reel_id}', response={204: None}, tags=[ApiDocTags.HIGHLIGHT_REEL])
+@router.delete('/highlight-reels/{highlight_reel_id}', response={204: None, 403: Message}, tags=[ApiDocTags.HIGHLIGHT_REEL])
 def delete_highlight_reel(request: HttpRequest, highlight_reel_id: int):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
+    if highlight_reel.user_id != request.user.id and not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to delete this highlight reel."}
     highlights = highlight_reel.highlights.all()
     try:
         with transaction.atomic(using='hockey'):
@@ -1058,6 +1107,8 @@ def get_highlight_reel_highlights(request: HttpRequest, highlight_reel_id: int):
 @router.post('/highlight-reels/{highlight_reel_id}/highlights', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.HIGHLIGHT_REEL])
 def add_highlight(request: HttpRequest, highlight_reel_id: int, data: HighlightIn):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
+    if highlight_reel.user_id != request.user.id and not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to add a highlight to this highlight reel."}
     try:
         with transaction.atomic(using='hockey'):
             highlight = create_highlight(data, highlight_reel, request.user.id)
