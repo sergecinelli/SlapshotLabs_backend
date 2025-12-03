@@ -3,7 +3,7 @@ from typing import Optional
 from ninja import Field, Schema
 
 from hockey.models import Game, Highlight, TeamSeason
-from hockey.utils.constants import EventName, GameStatus, GoalType, RinkZone, get_constant_class_int_description, get_constant_class_str_description
+from hockey.utils.constants import EventName, GameStatus, GoalType, HighlightVisibility, RinkZone, get_constant_class_int_description, get_constant_class_str_description
 
 # region Common
 
@@ -522,6 +522,8 @@ class HighlightIn(Schema):
     date: datetime.date | None = None
     time: datetime.time | None = None
     order: int | None = None
+    visibility: int = Field(HighlightVisibility.PRIVATE.id, description=get_constant_class_int_description(HighlightVisibility))
+    users_with_access: list[int] = Field([], description="List of user IDs with access to the highlight.")
 
 class HighlightUpdateIn(HighlightIn):
     id: int | None = None
@@ -534,6 +536,9 @@ class HighlightOut(HighlightIn):
     date: datetime.date | None = None
     time: str | None = None
     is_custom: bool = Field(..., description="Whether the highlight is a custom event.")
+    user_id: int
+    visibility: int = Field(..., description=get_constant_class_int_description(HighlightVisibility))
+    users_with_access: list[int] = Field([], description="List of user IDs with access to the highlight.")
 
     @staticmethod
     def resolve_event_name(obj: Highlight) -> str:
@@ -579,6 +584,10 @@ class HighlightOut(HighlightIn):
     def resolve_is_custom(obj: Highlight) -> bool:
         return (obj.custom_event is not None)
 
+    @staticmethod
+    def resolve_users_with_access(obj: Highlight) -> list[int]:
+        return [user.user_id for user in obj.users_with_access.all()]
+
 class HighlightReelIn(Schema):
     name: str
     description: str
@@ -593,9 +602,6 @@ class HighlightReelListOut(Schema):
     description: str
     created_by: str
     date: datetime.date
-
-class HighlightReelOut(HighlightReelListOut):
-    highlights: list[HighlightOut]
 
 # endregion
 

@@ -7,7 +7,7 @@ from django.db import models
 from django.db.models import Q, Case, DateField, ExpressionWrapper, UniqueConstraint, When, Value, F
 from django.db.models.functions import Concat
 
-from hockey.utils.constants import GOALIE_POSITION_NAME, GameStatus, GoalType, IdName, RinkZone, get_constant_class_int_choices, get_constant_class_str_choices
+from hockey.utils.constants import GOALIE_POSITION_NAME, GameStatus, GoalType, HighlightVisibility, IdName, RinkZone, get_constant_class_int_choices, get_constant_class_str_choices
 
 class TeamLevel(models.Model):
 
@@ -720,6 +720,11 @@ class Highlight(models.Model):
     user_id = models.IntegerField()
     """User ID reference. Not a foreign key because the users database is separate. Use User.objects.using('default').get(id=user_id) to access the user."""
 
+    visibility = models.IntegerField(choices=get_constant_class_int_choices(HighlightVisibility), default=HighlightVisibility.PRIVATE.id)
+    """Visibility of the highlight.
+    Values are from the `HighlightVisibility` class.
+    """
+
     def clean(self):
         if self.game_event is None and self.custom_event is None:
             raise ValidationError("Either game event or custom event must be set.")
@@ -732,6 +737,14 @@ class Highlight(models.Model):
 
     class Meta:
         db_table = "highlights"
+
+class HighlightUserAccess(models.Model):
+    highlight = models.ForeignKey(Highlight, related_name='users_with_access', on_delete=models.CASCADE)
+    user_id = models.IntegerField()
+    """User ID reference. Not a foreign key because the users database is separate. Use User.objects.using('default').get(id=user_id) to access the user."""
+
+    class Meta:
+        db_table = "highlight_user_access"
 
 class VideoLibrary(models.Model):
     name = models.CharField(max_length=150)

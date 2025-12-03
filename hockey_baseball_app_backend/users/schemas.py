@@ -10,6 +10,7 @@ class UserIn(Schema):
     password: str
 
 class UserOut(Schema):
+    id: int
     email: str
     first_name: str
     last_name: str
@@ -42,6 +43,17 @@ class UserEdit(Schema):
     street: Optional[str] = None
     postal_code: Optional[str] = None
     password: Optional[str] = None
+
+class UserSearch(Schema):
+    email: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+class UserSearchOut(Schema):
+    id: int
+    email: str
+    first_name: str
+    last_name: str
 
 class SignInSchema(Schema):
     email: str

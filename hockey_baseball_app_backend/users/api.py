@@ -13,7 +13,7 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.middleware.csrf import get_token
 from .models import CustomUser
-from .schemas import CSRFTokenSchema, Message, ErrorDictSchema, UserIn, UserEdit, UserOut, SignInSchema, ResetConfirmSchema, ResetRequestSchema
+from .schemas import CSRFTokenSchema, Message, ErrorDictSchema, UserIn, UserEdit, UserOut, SignInSchema, ResetConfirmSchema, ResetRequestSchema, UserSearch, UserSearchOut
 
 router = Router(tags=["Users"])
 
@@ -61,6 +61,17 @@ def sign_out(request: HttpRequest):
 @router.get('/get', auth=SessionAuth(), response=UserOut)
 def get_user(request: HttpRequest):
     return request.user
+
+@router.post('/search', auth=SessionAuth(), response=list[UserSearchOut])
+def search_users(request: HttpRequest, data: UserSearch):
+    users = User.objects
+    if data.email is not None:
+        users = users.filter(email__icontains=data.email)
+    if data.first_name is not None:
+        users = users.filter(first_name__icontains=data.first_name)
+    if data.last_name is not None:
+        users = users.filter(last_name__icontains=data.last_name)
+    return users.all()
 
 @router.patch('/edit', auth=SessionAuth(), response={204: None, 400: Message})
 def edit_user(request: HttpRequest, data: UserEdit):

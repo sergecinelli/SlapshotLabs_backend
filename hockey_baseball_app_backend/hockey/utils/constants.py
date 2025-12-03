@@ -48,6 +48,12 @@ class GameEventSystemStatus:
     DEPRECATED: Final[int] = 2
     '''Event has been deprecated: remove it from statistics and then delete it from the database.'''
 
+class HighlightVisibility:
+    """\"Private\", \"Restricted\" or \"Public\"."""
+    PRIVATE: Final[IdName] = IdName(1, "Private")
+    RESTRICTED: Final[IdName] = IdName(2, "Restricted")
+    PUBLIC: Final[IdName] = IdName(3, "Public")
+
 def get_constant_class_int_choices(constant_class) -> list[tuple[int, str]]:
     return sorted([(num_name.id, num_name.name) for _, num_name in inspect.getmembers(constant_class, lambda x: isinstance(x, IdName))], key=lambda x: x[0])
 

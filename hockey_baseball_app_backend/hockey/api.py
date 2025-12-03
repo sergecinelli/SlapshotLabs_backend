@@ -19,7 +19,7 @@ import faker.providers
 from faker_animals import AnimalsProvider
 
 from hockey.utils.constants import (GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, ApiDocTags,
-                                    EventName, GameEventSystemStatus, GameStatus, GoalType, get_constant_class_int_choices,
+                                    EventName, GameEventSystemStatus, GameStatus, GoalType, HighlightVisibility, get_constant_class_int_choices,
                                     ApiDocTags)
 from hockey.utils.event_analysis_serializer import serialize_game, serialize_game_event
 from users.utils.roles import is_user_admin, is_user_coach
@@ -29,13 +29,13 @@ from .schemas import (ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZon
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut,
                       GameSprayChartFilters, GameTypeOut, GameTypeRecordOut, GoalieBaseOut, GoalieSeasonOut,
                       GoalieSeasonsGet, GoalieSprayChartFilters, GoalieTeamSeasonOut, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn,
-                      HighlightReelListOut, HighlightReelOut, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn,
+                      HighlightReelListOut, HighlightUpdateIn, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn,
                       OffensiveZoneEntryOut, PlayerBaseOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, PlayerTeamSeasonOut, SeasonIn,
                       SeasonOut, ShotsIn, ShotsOut, SprayChartFilters,
                       TeamIn, TeamOut, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
 from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
-                     GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, GoalieTeamSeason, Highlight, HighlightReel, OffensiveZoneEntry, Player,
+                     GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, GoalieTeamSeason, Highlight, HighlightReel, HighlightUserAccess, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, PlayerTeamSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName,
                      Turnovers, VideoLibrary)
 from .utils import api_response_templates as resp
@@ -507,7 +507,7 @@ def get_game_extra(request: HttpRequest, game_id: int):
 
 @router.post('/game', response={200: GameOut, 400: Message, 403: Message, 503: Message}, tags=[ApiDocTags.GAME])
 def add_game(request: HttpRequest, data: GameIn):
-    if not is_user_coach(request.user, data.home_team_id) and not is_user_coach(request.user, data.away_team_id):
+    if not is_user_admin(request.user):
         return 403, {"message": "You are not authorized to add a game."}
     try:
         game_season = get_current_season(data.date)
@@ -566,7 +566,7 @@ def add_game(request: HttpRequest, data: GameIn):
 @router.patch("/game/{game_id}", response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.GAME])
 def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
     game = get_object_or_404(Game, id=game_id)
-    if not is_user_coach(request.user, game.home_team_id) and not is_user_coach(request.user, game.away_team_id):
+    if not is_user_admin(request.user):
         return 403, {"message": "You are not authorized to update this game."}
     game_status = game.status
     data_status = data.get('status')
@@ -623,7 +623,7 @@ def update_game(request: HttpRequest, game_id: int, data: PatchDict[GameIn]):
 @router.delete("/game/{game_id}", response={204: None, 403: Message}, tags=[ApiDocTags.GAME])
 def delete_game(request: HttpRequest, game_id: int):
     game = get_object_or_404(Game, id=game_id)
-    if not is_user_coach(request.user, game.home_team_id) and not is_user_coach(request.user, game.away_team_id):
+    if not is_user_admin(request.user):
         return 403, {"message": "You are not authorized to delete this game."}
     with transaction.atomic(using='hockey'):
         if game.status == GameStatus.GAME_OVER.id:
@@ -1102,7 +1102,12 @@ def delete_highlight_reel(request: HttpRequest, highlight_reel_id: int):
 @router.get('/highlight-reels/{highlight_reel_id}/highlights', response=list[HighlightOut], tags=[ApiDocTags.HIGHLIGHT_REEL])
 def get_highlight_reel_highlights(request: HttpRequest, highlight_reel_id: int):
     highlight_reel = get_object_or_404(HighlightReel, id=highlight_reel_id)
-    return highlight_reel.highlights.order_by('order').all()
+    highlights = highlight_reel.highlights.filter(
+        (Q(visibility=HighlightVisibility.PUBLIC.id) |
+         (Q(visibility=HighlightVisibility.RESTRICTED.id) & Q(users_with_access__user_id=request.user.id)) |
+         Q(user_id=request.user.id))).\
+        order_by('order').all()
+    return highlights
 
 @router.post('/highlight-reels/{highlight_reel_id}/highlights', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.HIGHLIGHT_REEL])
 def add_highlight(request: HttpRequest, highlight_reel_id: int, data: HighlightIn):
@@ -1116,9 +1121,28 @@ def add_highlight(request: HttpRequest, highlight_reel_id: int, data: HighlightI
         return 400, {"message": str(e)}
     return {"id": highlight.id}
 
+@router.patch('/highlights/{highlight_id}', response={204: None, 400: Message}, tags=[ApiDocTags.HIGHLIGHT_REEL])
+def update_highlight(request: HttpRequest, highlight_id: int, data: PatchDict[HighlightIn]):
+    highlight = get_object_or_404(Highlight, id=highlight_id)
+    if highlight.user_id != request.user.id and not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to update this highlight."}
+    for attr, value in data.items():
+        if attr == "visibility":
+            highlight.visibility = value
+        elif attr == "users_with_access":
+            HighlightUserAccess.objects.filter(highlight=highlight).exclude(user_id__in=value).delete() # Delete users not in the list
+            for user_id in value:
+                HighlightUserAccess.objects.get_or_create(highlight=highlight, user_id=user_id) # Add new users to the list
+        else:
+            setattr(highlight, attr, value)
+    highlight.save()
+    return 204, None
+
 @router.delete('/highlights/{highlight_id}', response={204: None, 400: Message}, tags=[ApiDocTags.HIGHLIGHT_REEL])
 def delete_highlight(request: HttpRequest, highlight_id: int):
     highlight = get_object_or_404(Highlight, id=highlight_id)
+    if highlight.user_id != request.user.id and not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to delete this highlight."}
     try:
         with transaction.atomic(using='hockey'):
             if highlight.custom_event is not None:

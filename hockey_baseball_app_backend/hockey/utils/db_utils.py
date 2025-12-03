@@ -4,7 +4,7 @@ from typing import Any
 from django.db import IntegrityError
 from django.db.models.query import QuerySet
 
-from hockey.models import CustomEvents, Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Highlight, HighlightReel, Player, PlayerPosition, PlayerSeason, Season, ShotType, Team
+from hockey.models import CustomEvents, Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Highlight, HighlightReel, HighlightUserAccess, Player, PlayerPosition, PlayerSeason, Season, ShotType, Team
 from hockey.schemas import GameDashboardGameOut, GameEventIn, GameGoalieOut, GameOut, GamePlayerOut, GoalieOut, HighlightIn, PlayerOut
 from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, EventName, GoalType
 
@@ -359,9 +359,12 @@ def create_highlight(data: HighlightIn, highlight_reel: HighlightReel, user_id: 
             raise ValueError("If game event ID is provided, none of the other fields except order should be provided.")
         game_event_id = data.game_event_id
         custom_event = None
-    highlight = Highlight(game_event_id=game_event_id, custom_event=custom_event, highlight_reel_id=highlight_reel.id, order=data.order, user_id=user_id)
+    highlight = Highlight(game_event_id=game_event_id, custom_event=custom_event, highlight_reel_id=highlight_reel.id,
+        order=data.order, user_id=user_id, visibility=data.visibility)
     highlight.full_clean()
     highlight.save()
+    for user_id in data.users_with_access:
+        HighlightUserAccess.objects.create(highlight=highlight, user_id=user_id)
     return highlight
 
 # endregion Create complex items
