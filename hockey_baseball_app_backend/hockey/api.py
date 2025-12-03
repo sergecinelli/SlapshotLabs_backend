@@ -1076,7 +1076,13 @@ def update_highlight_reel(request: HttpRequest, highlight_reel_id: int, data: Hi
                         highlight.game_event_id = None
                         highlight.custom_event = CustomEvents.objects.create(event_name=highlight_data.event_name, note=highlight_data.note,
                             youtube_link=highlight_data.youtube_link, date=highlight_data.date, time=highlight_data.time, user_id=request.user.id)
-                        highlight.save()
+                    if "visibility" in provided_fields:
+                        highlight.visibility = provided_fields["visibility"]
+                    if "users_with_access" in provided_fields:
+                        HighlightUserAccess.objects.filter(highlight=highlight).exclude(user_id__in=provided_fields["users_with_access"]).delete()
+                        for user_id in provided_fields["users_with_access"]:
+                            HighlightUserAccess.objects.get_or_create(highlight=highlight, user_id=user_id)
+                    highlight.save()
                 highlight_reel.save()
     except ValueError as e:
         return 400, {"message": str(e)}
