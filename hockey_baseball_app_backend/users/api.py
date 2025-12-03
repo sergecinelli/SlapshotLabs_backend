@@ -65,6 +65,8 @@ def get_user(request: HttpRequest):
 @router.post('/search', auth=SessionAuth(), response=list[UserSearchOut])
 def search_users(request: HttpRequest, data: UserSearch):
     users = User.objects
+    if data.ids is not None:
+        users = users.filter(id__in=data.ids)
     if data.email is not None:
         users = users.filter(email__icontains=data.email)
     if data.first_name is not None:

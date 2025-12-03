@@ -45,6 +45,7 @@ class UserEdit(Schema):
     password: Optional[str] = None
 
 class UserSearch(Schema):
+    ids: Optional[list[int]] = None
     email: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
