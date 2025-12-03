@@ -600,7 +600,8 @@ class HighlightReelListOut(Schema):
     id: int
     name: str
     description: str
-    created_by: str
+    user_id: int = Field(..., description="ID of the user who created the highlight reel.")
+    created_by: str = Field(..., description="Name of the user who created the highlight reel.")
     date: datetime.date
 
 # endregion

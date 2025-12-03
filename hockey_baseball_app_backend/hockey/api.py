@@ -1011,7 +1011,7 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
 
 @router.get('/highlight-reels', response=list[HighlightReelListOut], tags=[ApiDocTags.HIGHLIGHT_REEL])
 def get_highlight_reels(request: HttpRequest):
-    highlight_reels = HighlightReel.objects.all() # TODO: filter by current user
+    highlight_reels = HighlightReel.objects.all()
     highlight_reels_out = []
     
     user_ids = list(set([reel.user_id for reel in highlight_reels if reel.user_id is not None]))
@@ -1021,7 +1021,7 @@ def get_highlight_reels(request: HttpRequest):
         user = users.get(reel.user_id) if reel.user_id else None
         created_by = f'{user.first_name} {user.last_name}' if user is not None else "?"
         highlight_reels_out.append(HighlightReelListOut(id=reel.id, name=reel.name, description=reel.description,
-                                                        date=reel.date, created_by=created_by))
+                                                        date=reel.date, user_id=reel.user_id, created_by=created_by))
     return highlight_reels_out
 
 @router.post('/highlight-reels', response={200: ObjectId, 400: Message},
