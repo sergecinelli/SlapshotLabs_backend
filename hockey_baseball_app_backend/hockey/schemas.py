@@ -1,9 +1,11 @@
 import datetime
-from typing import Optional
+from types import SimpleNamespace
+from typing import Any, Optional
 from ninja import Field, Schema
 
 from hockey.models import Game, Highlight, TeamSeason
 from hockey.utils.constants import EventName, GameStatus, GoalType, HighlightVisibility, RinkZone, get_constant_class_int_description, get_constant_class_str_description
+from hockey.utils.formulas import get_team_points
 
 # region Common
 
@@ -209,12 +211,20 @@ class TeamIn(Schema):
 
 class TeamOut(TeamIn):
     id: int
+    games_played: int
+    goals_for: int
+    goals_against: int
+    wins: int
+    losses: int
+    ties: int
+    points: int
 
 class TeamSeasonOut(Schema):
     id: int
     team_id: int
     season_id: int
     games_played: int
+    goals_for: int
     goals_against: int
     wins: int
     losses: int
@@ -223,7 +233,7 @@ class TeamSeasonOut(Schema):
 
     @staticmethod
     def resolve_points(obj: TeamSeason) -> int:
-        return (obj.wins * 2) + obj.ties
+        return get_team_points(obj)
 
 # endregion
 

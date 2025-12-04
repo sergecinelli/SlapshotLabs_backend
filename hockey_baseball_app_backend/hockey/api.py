@@ -1,6 +1,7 @@
 import datetime
 import os
 import re
+from types import SimpleNamespace
 from django.conf import settings
 from django.db.models import Q
 from django.db.models.deletion import RestrictedError
@@ -22,6 +23,7 @@ from hockey.utils.constants import (GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, 
                                     EventName, GameEventSystemStatus, GameStatus, GoalType, HighlightVisibility, get_constant_class_int_choices,
                                     ApiDocTags)
 from hockey.utils.event_analysis_serializer import serialize_game, serialize_game_event
+from hockey.utils.formulas import get_team_points
 from users.utils.roles import is_user_admin, is_user_coach
 
 from .schemas import (ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut,
@@ -283,12 +285,32 @@ def get_team_levels(request: HttpRequest):
 @router.get('/team/list', response=list[TeamOut], tags=[ApiDocTags.TEAM])
 def get_teams(request: HttpRequest):
     teams = Team.objects.filter(is_archived=False)
-    return teams
+    team_ids = teams.values_list('id', flat=True)
+    current_season = get_current_season()
+    team_seasons = TeamSeason.objects.filter(team_id__in=team_ids, season_id=current_season.id)
+    team_seasons_dict = {team_season.team_id: team_season for team_season in team_seasons}
+    teams_out = []
+    for team in teams:
+        team_season = team_seasons_dict.get(team.id)
+        if team_season is None:
+            team_season = TeamSeason.objects.create(team=team, season=current_season, games_played=0,
+                goals_for=0, goals_against=0, wins=0, losses=0, ties=0)
+        teams_out.append(TeamOut(id=team.id, age_group=team.age_group, level_id=team.level_id, division_id=team.division_id,
+            name=team.name, abbreviation=team.abbreviation, city=team.city,
+            games_played=team_season.games_played, goals_for=team_season.goals_for, goals_against=team_season.goals_against,
+            wins=team_season.wins, losses=team_season.losses, ties=team_season.ties, points=get_team_points(team_season)))
+    return teams_out
 
 @router.get('/team/{team_id}', response=TeamOut, tags=[ApiDocTags.TEAM])
 def get_team(request: HttpRequest, team_id: int):
     team = get_object_or_404(Team, id=team_id)
-    return team
+    current_season = get_current_season()
+    team_season, _ = TeamSeason.objects.get_or_create(team=team, season=current_season,
+        defaults={'games_played': 0, 'goals_for': 0, 'goals_against': 0, 'wins': 0, 'losses': 0, 'ties': 0})
+    return TeamOut(id=team.id, age_group=team.age_group, level_id=team.level_id, division_id=team.division_id,
+        name=team.name, abbreviation=team.abbreviation, city=team.city,
+        games_played=team_season.games_played, goals_for=team_season.goals_for, goals_against=team_season.goals_against,
+        wins=team_season.wins, losses=team_season.losses, ties=team_season.ties, points=get_team_points(team_season))
 
 @router.get('/team/{team_id}/logo', response=bytes, tags=[ApiDocTags.TEAM])
 def get_team_logo(request: HttpRequest, team_id: int):
@@ -382,7 +404,8 @@ def delete_season(request: HttpRequest, season_id: int):
     return 204, None
 
 @router.get('/team-season/list', response=list[TeamSeasonOut],
-            description="Returns the last `limit` team season results for the given team, or for all teams if no team is specified.", tags=[ApiDocTags.TEAM, ApiDocTags.STATS])
+            description="Returns the last `limit` team season results for the given team, or for all teams if no team is specified.",
+            tags=[ApiDocTags.TEAM, ApiDocTags.STATS])
 def get_team_seasons(request: HttpRequest, team_id: int | None = None, limit: int = 2):
     team_seasons = TeamSeason.objects.exclude(season__start_date__gt=datetime.datetime.now(datetime.timezone.utc).date())
     if team_id is not None:
