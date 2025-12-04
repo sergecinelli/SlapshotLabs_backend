@@ -4,7 +4,7 @@ from typing import Any
 from django.db import IntegrityError
 from django.db.models.query import QuerySet
 
-from hockey.models import CustomEvents, Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Highlight, HighlightReel, HighlightUserAccess, Player, PlayerPosition, PlayerSeason, Season, ShotType, Team
+from hockey.models import CustomEvents, DefensiveZoneExit, Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Highlight, HighlightReel, HighlightUserAccess, OffensiveZoneEntry, Player, PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, Turnovers
 from hockey.schemas import GameDashboardGameOut, GameEventIn, GameGoalieOut, GameOut, GamePlayerOut, GoalieOut, HighlightIn, PlayerOut
 from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, EventName, GoalType
 
@@ -28,6 +28,12 @@ def get_game_current_goalies(game: Game) -> tuple[int, int]:
 
 def get_team_choices() -> list[tuple[int, str]]:
     return [(team.id, team.name) for team in Team.objects.filter(is_archived=False).order_by('name').all()]
+
+def get_game_from_dashboard_home_or_away(home_or_away: DefensiveZoneExit | OffensiveZoneEntry | Shots | Turnovers) -> Game:
+    if hasattr(home_or_away, 'home_game'):
+        return home_or_away.home_game
+    else:
+        return home_or_away.away_game
 
 # region No goalie
 

@@ -43,7 +43,7 @@ from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division
 from .utils import api_response_templates as resp
 from .utils.db_utils import (create_highlight, form_game_goalie_out, form_game_dashboard_game_out, form_game_player_out, form_goalie_out,
                              form_player_out, get_current_season,
-                             get_game_current_goalies, get_no_goalie, is_no_goalie_dict, is_no_goalie_object, update_game_faceoffs_from_event,
+                             get_game_current_goalies, get_game_from_dashboard_home_or_away, get_no_goalie, is_no_goalie_dict, is_no_goalie_object, update_game_faceoffs_from_event,
                              update_game_shots_from_event, update_game_turnovers_from_event)
 
 router = Router()
@@ -662,7 +662,8 @@ def get_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id: i
 @router.patch("/game/defensive-zone-exit/{defensive_zone_exit_id}", response={204: None, 403: Message}, tags=[ApiDocTags.GAME])
 def update_game_defensive_zone_exit(request: HttpRequest, defensive_zone_exit_id: int, data: PatchDict[DefensiveZoneExitIn]):
     defensive_zone_exit = get_object_or_404(DefensiveZoneExit, id=defensive_zone_exit_id)
-    if not is_user_coach(request.user, defensive_zone_exit.game.home_team_id) and not is_user_coach(request.user, defensive_zone_exit.game.away_team_id):
+    game = get_game_from_dashboard_home_or_away(defensive_zone_exit)
+    if not is_user_coach(request.user, game.home_team_id) and not is_user_coach(request.user, game.away_team_id):
         return 403, {"message": "You are not authorized to update this game."}
     for attr, value in data.items():
         setattr(defensive_zone_exit, attr, value)
@@ -677,7 +678,8 @@ def get_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_id:
 @router.patch("/game/offensive-zone-entry/{offensive_zone_entry_id}", response={204: None, 403: Message}, tags=[ApiDocTags.GAME])
 def update_game_offensive_zone_entry(request: HttpRequest, offensive_zone_entry_id: int, data: PatchDict[OffensiveZoneEntryIn]):
     offensive_zone_entry = get_object_or_404(OffensiveZoneEntry, id=offensive_zone_entry_id)
-    if not is_user_coach(request.user, offensive_zone_entry.game.home_team_id) and not is_user_coach(request.user, offensive_zone_entry.game.away_team_id):
+    game = get_game_from_dashboard_home_or_away(offensive_zone_entry)
+    if not is_user_coach(request.user, game.home_team_id) and not is_user_coach(request.user, game.away_team_id):
         return 403, {"message": "You are not authorized to update this game."}
     for attr, value in data.items():
         setattr(offensive_zone_entry, attr, value)
