@@ -211,6 +211,8 @@ class TeamIn(Schema):
 
 class TeamOut(TeamIn):
     id: int
+    level_name: str
+    division_name: str
     games_played: int
     goals_for: int
     goals_against: int
@@ -256,6 +258,7 @@ class ArenaRinkOut(ArenaRinkIn):
 class ArenaRinkExtendedOut(ArenaRinkOut):
     id: int
     arena_name: str
+    arena_address: str
 
 class DefensiveZoneExitIn(Schema):
     icing: int
@@ -329,12 +332,16 @@ class GameOut(Schema):
     id: int
     home_team_id: int
     home_start_goalie_id: int | None
+    home_start_goalie_name: str | None
     home_goals: int
     away_team_id: int
     away_start_goalie_id: int | None
+    away_start_goalie_name: str | None
     away_goals: int
     game_type_id: int
-    game_type_name: str | None = Field(None, alias="game_type_name_str")
+    game_type: str
+    game_type_name_id: int | None
+    game_type_name: str | None = Field(None, description="Subtype of the game type.")
     status: int = Field(..., description=get_constant_class_int_description(GameStatus))
     date: datetime.date
     time: datetime.time
@@ -344,6 +351,35 @@ class GameOut(Schema):
     analysis: str | None = None
 
     game_period_id: int | None = None
+    game_period_name: str | None
+
+    @staticmethod
+    def resolve_home_start_goalie_name(obj: Game) -> str | None:
+        if obj.home_start_goalie is not None:
+            return obj.home_start_goalie.player.first_name + " " + obj.home_start_goalie.player.last_name
+        return None
+    
+    @staticmethod
+    def resolve_away_start_goalie_name(obj: Game) -> str | None:
+        if obj.away_start_goalie is not None:
+            return obj.away_start_goalie.player.first_name + " " + obj.away_start_goalie.player.last_name
+        return None
+    
+    @staticmethod
+    def resolve_game_period_name(obj: Game) -> str | None:
+        if obj.game_period is not None:
+            return obj.game_period.name
+        return None
+
+    @staticmethod
+    def resolve_game_type(obj: Game) -> str:
+        return obj.game_type.name
+    
+    @staticmethod
+    def resolve_game_type_name(obj: Game) -> str | None:
+        if obj.game_type_name is not None:
+            return obj.game_type_name.name
+        return None
 
 class GameBannerOut(Schema):
     id: int
@@ -368,9 +404,31 @@ class GameTypeRecordOut(Schema):
     losses: int
     ties: int
 
-class GameExtendedOut(GameOut):
-    game_type_name: str | None = None
+class GameExtendedOut(Schema):
+    # All fields from GameOut duplicated to avoid resolver method conflicts
+    id: int
+    home_team_id: int
+    home_start_goalie_id: int | None
+    home_start_goalie_name: str | None
+    home_goals: int
+    away_team_id: int
+    away_start_goalie_id: int | None
+    away_start_goalie_name: str | None
+    away_goals: int
+    game_type_id: int
+    game_type: str
+    game_type_name_id: int | None
+    game_type_name: str | None = Field(None, description="Subtype of the game type.")
+    status: int = Field(..., description=get_constant_class_int_description(GameStatus))
+    date: datetime.date
+    time: datetime.time
+    season_id: int | None = None
     arena_id: int
+    rink_id: int | None = None
+    analysis: str | None = None
+    game_period_id: int | None = None
+    game_period_name: str | None
+    # Extended fields
     home_team_game_type_record: GameTypeRecordOut | None = None
     away_team_game_type_record: GameTypeRecordOut | None = None
 

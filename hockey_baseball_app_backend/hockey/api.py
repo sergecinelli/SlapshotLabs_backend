@@ -295,7 +295,8 @@ def get_teams(request: HttpRequest):
         if team_season is None:
             team_season = TeamSeason.objects.create(team=team, season=current_season, games_played=0,
                 goals_for=0, goals_against=0, wins=0, losses=0, ties=0)
-        teams_out.append(TeamOut(id=team.id, age_group=team.age_group, level_id=team.level_id, division_id=team.division_id,
+        teams_out.append(TeamOut(id=team.id, age_group=team.age_group, level_id=team.level_id, level_name=team.level.name,
+            division_id=team.division_id, division_name=team.division.name,
             name=team.name, abbreviation=team.abbreviation, city=team.city,
             games_played=team_season.games_played, goals_for=team_season.goals_for, goals_against=team_season.goals_against,
             wins=team_season.wins, losses=team_season.losses, ties=team_season.ties, points=get_team_points(team_season)))
@@ -307,7 +308,8 @@ def get_team(request: HttpRequest, team_id: int):
     current_season = get_current_season()
     team_season, _ = TeamSeason.objects.get_or_create(team=team, season=current_season,
         defaults={'games_played': 0, 'goals_for': 0, 'goals_against': 0, 'wins': 0, 'losses': 0, 'ties': 0})
-    return TeamOut(id=team.id, age_group=team.age_group, level_id=team.level_id, division_id=team.division_id,
+    return TeamOut(id=team.id, age_group=team.age_group, level_id=team.level_id, level_name=team.level.name,
+        division_id=team.division_id, division_name=team.division.name,
         name=team.name, abbreviation=team.abbreviation, city=team.city,
         games_played=team_season.games_played, goals_for=team_season.goals_for, goals_against=team_season.goals_against,
         wins=team_season.wins, losses=team_season.losses, ties=team_season.ties, points=get_team_points(team_season))
@@ -435,7 +437,8 @@ def get_arena_rinks(request: HttpRequest):
 @router.get('/arena-rink/{arena_rink_id}', response=ArenaRinkExtendedOut, tags=[ApiDocTags.GAME])
 def get_arena_rink(request: HttpRequest, arena_rink_id: int):
     arena_rink = get_object_or_404(ArenaRink, id=arena_rink_id)
-    return ArenaRinkExtendedOut(id=arena_rink.id, name=arena_rink.name, arena_id=arena_rink.arena_id, arena_name=arena_rink.arena.name)
+    return ArenaRinkExtendedOut(id=arena_rink.id, name=arena_rink.name, arena_id=arena_rink.arena_id,
+        arena_name=arena_rink.arena.name, arena_address=arena_rink.arena.address)
 
 @router.get('/game-type/list', response=list[GameTypeOut], tags=[ApiDocTags.GAME])
 def get_game_types(request: HttpRequest):
@@ -455,7 +458,7 @@ def get_game_periods(request: HttpRequest):
 
 @router.get('/game/list', response=list[GameOut], tags=[ApiDocTags.GAME])
 def get_games(request: HttpRequest, on_now: bool = False):
-    games = Game.objects.select_related('rink', 'game_type_name')
+    games = Game.objects.select_related('rink', 'game_type_name', 'home_start_goalie', 'away_start_goalie', 'game_period')
     if on_now:
         games = games.filter(status=2)
     return games.order_by('-date').all()
@@ -492,13 +495,13 @@ def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | Non
 
 @router.get('/game/{game_id}', response=GameOut, tags=[ApiDocTags.GAME])
 def get_game(request: HttpRequest, game_id: int):
-    game = get_object_or_404(Game.objects.select_related('rink', 'game_type_name'), id=game_id)
+    game = get_object_or_404(Game.objects.select_related('rink', 'game_type_name', 'home_start_goalie', 'away_start_goalie', 'game_period'), id=game_id)
     return game
 
 @router.get('/game/{game_id}/extra', response=GameExtendedOut, tags=[ApiDocTags.GAME])
 def get_game_extra(request: HttpRequest, game_id: int):
     """Returns a game with extra information for the Live Dashboard."""
-    game = get_object_or_404(Game.objects.select_related('rink', 'game_type_name'), id=game_id)
+    game = get_object_or_404(Game.objects.select_related('rink', 'game_type_name', 'home_start_goalie', 'away_start_goalie', 'game_period'), id=game_id)
     game_type_games = Game.objects.filter(game_type=game.game_type, season=game.season).\
         filter(Q(home_team_id=game.home_team_id) | Q(away_team_id=game.away_team_id)).exclude(id=game_id)
     if game.game_type_name is not None:
@@ -520,13 +523,34 @@ def get_game_extra(request: HttpRequest, game_id: int):
                 away_team_record.losses += 1
             else:
                 away_team_record.ties += 1
-    return GameExtendedOut(id=game.id, home_team_id=game.home_team_id, home_start_goalie_id=game.home_start_goalie_id,
-                           home_goals=game.home_goals, away_team_id=game.away_team_id, away_start_goalie_id=game.away_start_goalie_id,
-                           away_goals=game.away_goals,
-                           game_type_id=game.game_type_id, game_period_id=game.game_period_id,
-                           game_type_name=game.game_type_name_str, status=game.status,
-                           date=game.date, time=game.time, season_id=game.season_id, rink_id=game.rink_id, arena_id=game.arena_id,
-                           home_team_game_type_record=home_team_record, away_team_game_type_record=away_team_record)
+    
+    return GameExtendedOut(
+        id=game.id,
+        home_team_id=game.home_team_id,
+        home_start_goalie_id=game.home_start_goalie_id if game.home_start_goalie is not None else None,
+        home_start_goalie_name=(game.home_start_goalie.player.first_name + " " + game.home_start_goalie.player.last_name
+            if game.home_start_goalie is not None else None),
+        home_goals=game.home_goals,
+        away_team_id=game.away_team_id,
+        away_start_goalie_id=game.away_start_goalie_id if game.away_start_goalie is not None else None,
+        away_start_goalie_name=(game.away_start_goalie.player.first_name + " " + game.away_start_goalie.player.last_name
+            if game.away_start_goalie is not None else None),
+        away_goals=game.away_goals,
+        game_type_id=game.game_type_id,
+        game_type=game.game_type.name,
+        game_period_id=game.game_period_id if game.game_period is not None else None,
+        game_period_name=game.game_period.name if game.game_period is not None else None,
+        game_type_name_id=game.game_type_name_id if game.game_type_name is not None else None,
+        game_type_name=game.game_type_name.name if game.game_type_name is not None else None,
+        status=game.status,
+        date=game.date,
+        time=game.time,
+        season_id=game.season_id,
+        rink_id=game.rink_id,
+        arena_id=game.arena_id,
+        home_team_game_type_record=home_team_record,
+        away_team_game_type_record=away_team_record
+    )
 
 @router.post('/game', response={200: GameOut, 400: Message, 403: Message, 503: Message}, tags=[ApiDocTags.GAME])
 def add_game(request: HttpRequest, data: GameIn):
