@@ -206,12 +206,16 @@ def form_game_dashboard_game_out(game: Game) -> GameDashboardGameOut:
         id=game.id,
         home_team_id=game.home_team_id,
         home_start_goalie_id=game.home_start_goalie_id,
+        home_start_goalie_name=game.home_start_goalie.player.first_name + " " + game.home_start_goalie.player.last_name if game.home_start_goalie is not None else None,
         home_goals=game.home_goals,
         away_team_id=game.away_team_id,
         away_start_goalie_id=game.away_start_goalie_id,
+        away_start_goalie_name=game.away_start_goalie.player.first_name + " " + game.away_start_goalie.player.last_name if game.away_start_goalie is not None else None,
         away_goals=game.away_goals,
         game_type_id=game.game_type_id,
-        game_type_name=game.game_type_name_str,
+        game_type=game.game_type.name,
+        game_type_name_id=game.game_type_name_id,
+        game_type_name=game.game_type_name.name if game.game_type_name is not None else None,
         status=game.status,
         date=game.date,
         time=game.time,
@@ -219,6 +223,7 @@ def form_game_dashboard_game_out(game: Game) -> GameDashboardGameOut:
         arena_id=game.arena_id,
         rink_id=game.rink_id,
         game_period_id=game.game_period_id,
+        game_period_name=game.game_period.name if game.game_period is not None else None,
     )
 
 # endregion Form outputs

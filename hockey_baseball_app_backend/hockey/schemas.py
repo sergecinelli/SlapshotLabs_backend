@@ -404,7 +404,7 @@ class GameTypeRecordOut(Schema):
     losses: int
     ties: int
 
-class GameExtendedOut(Schema):
+class GameDashboardGameOut(Schema):
     # All fields from GameOut duplicated to avoid resolver method conflicts
     id: int
     home_team_id: int
@@ -428,12 +428,10 @@ class GameExtendedOut(Schema):
     analysis: str | None = None
     game_period_id: int | None = None
     game_period_name: str | None
-    # Extended fields
+
+class GameExtendedOut(GameDashboardGameOut):
     home_team_game_type_record: GameTypeRecordOut | None = None
     away_team_game_type_record: GameTypeRecordOut | None = None
-
-class GameDashboardGameOut(GameOut):
-    game_type_name: str | None
 
 class GameDashboardOut(Schema):
     upcoming_games: list[GameDashboardGameOut]

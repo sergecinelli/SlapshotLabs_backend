@@ -41,7 +41,7 @@ from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division
                      PlayerPosition, PlayerSeason, PlayerTeamSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName,
                      Turnovers, VideoLibrary)
 from .utils import api_response_templates as resp
-from .utils.db_utils import (create_highlight, form_game_goalie_out, form_game_dashboard_game_out, form_game_player_out, form_goalie_out,
+from .utils.db_utils import (create_highlight, form_game_dashboard_game_out, form_game_goalie_out, form_game_player_out, form_goalie_out,
                              form_player_out, get_current_season,
                              get_game_current_goalies, get_game_from_dashboard_home_or_away, get_no_goalie, is_no_goalie_dict, is_no_goalie_object, update_game_faceoffs_from_event,
                              update_game_shots_from_event, update_game_turnovers_from_event)
