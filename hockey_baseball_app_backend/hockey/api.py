@@ -456,12 +456,20 @@ def get_game_periods(request: HttpRequest):
     game_periods = GamePeriod.objects.order_by('order')
     return game_periods
 
-@router.get('/game/list', response=list[GameOut], tags=[ApiDocTags.GAME])
-def get_games(request: HttpRequest, on_now: bool = False):
+@router.get('/game/list', response=list[GameOut], tags=[ApiDocTags.GAME],
+    description=("Returns a list of games for the given date range.\n\n"
+                 "If `on_now` is True, only returns games that are currently happening.\n\n"
+                 "If `from_date` and `to_date` are provided, only returns games in that date range (from_date inclusive, to_date exclusive).\n\n"
+                 "Games are sorted by date in descending order, then time in descending order."))
+def get_games(request: HttpRequest, on_now: bool = False, from_date: datetime.date | None = None, to_date: datetime.date | None = None):
     games = Game.objects.select_related('rink', 'game_type_name', 'home_start_goalie', 'away_start_goalie', 'game_period')
     if on_now:
         games = games.filter(status=2)
-    return games.order_by('-date').all()
+    if from_date is not None:
+        games = games.filter(date__gte=from_date)
+    if to_date is not None:
+        games = games.filter(date__lt=to_date)
+    return games.order_by('-date', '-time').all()
 
 @router.get('/game/list/banner', response=list[GameBannerOut], description="Returns a list of current games for the banner.", tags=[ApiDocTags.GAME])
 def get_games_banner(request: HttpRequest):

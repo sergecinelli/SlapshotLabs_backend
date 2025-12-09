@@ -4,7 +4,7 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Q, Case, DateField, ExpressionWrapper, UniqueConstraint, When, Value, F
+from django.db.models import Q, Case, DateField, ExpressionWrapper, Index, UniqueConstraint, When, Value, F
 from django.db.models.functions import Concat
 
 from hockey.utils.constants import GOALIE_POSITION_NAME, GameStatus, GoalType, HighlightVisibility, IdName, RinkZone, get_constant_class_int_choices, get_constant_class_str_choices
@@ -557,6 +557,10 @@ class Game(models.Model):
 
     class Meta:
         db_table = "games"
+
+        indexes = [
+            Index(fields=['-date'], name='idx_games_date_desc'),
+        ]
 
 class GamePlayer(models.Model):
 
