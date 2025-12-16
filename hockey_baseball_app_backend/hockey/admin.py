@@ -6,7 +6,7 @@ from hockey.utils.db_utils import is_no_goalie_object
 
 from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod,
                      GamePlayer, GameType, Goalie, OffensiveZoneEntry, Player, PlayerPosition, PlayerTransaction,
-                     Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName, Turnovers)
+                     Season, ShotType, Shots, Team, TeamAgeGroup, TeamLevel, TeamSeason, GameTypeName, Turnovers)
 
 class ReadOnlyAdminMixin:
     def has_add_permission(self, request, obj=None):
@@ -133,6 +133,12 @@ class SeasonAdmin(admin.ModelAdmin):
     list_display = ['name', 'start_date']
     ordering = ['-start_date']
     search_fields = ['name', 'start_date']
+
+@admin.register(TeamAgeGroup)
+class TeamAgeGroupAdmin(admin.ModelAdmin):
+    list_display = ['name']
+    ordering = ['name']
+    search_fields = ['name']
 
 @admin.register(Team)
 class TeamAdmin(admin.ModelAdmin):

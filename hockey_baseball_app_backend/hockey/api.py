@@ -38,7 +38,7 @@ from .schemas import (ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZon
                       TeamIn, TeamOut, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
 from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, GoalieTeamSeason, Highlight, HighlightReel, HighlightUserAccess, OffensiveZoneEntry, Player,
-                     PlayerPosition, PlayerSeason, PlayerTeamSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamLevel, TeamSeason, GameTypeName,
+                     PlayerPosition, PlayerSeason, PlayerTeamSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamAgeGroup, TeamLevel, TeamSeason, GameTypeName,
                      Turnovers, VideoLibrary)
 from .utils import api_response_templates as resp
 from .utils.db_utils import (create_highlight, form_game_dashboard_game_out, form_game_goalie_out, form_game_player_out, form_goalie_out,
@@ -277,6 +277,11 @@ def get_divisions(request: HttpRequest):
     divisions = Division.objects.all()
     return divisions
 
+@router.get('/team-age-group/list', response=list[str], tags=[ApiDocTags.TEAM])
+def get_team_age_groups(request: HttpRequest):
+    age_groups = TeamAgeGroup.objects.order_by('name').all()
+    return [age_group.name for age_group in age_groups]
+
 @router.get('/team-level/list', response=list[ObjectIdName], tags=[ApiDocTags.TEAM])
 def get_team_levels(request: HttpRequest):
     levels = TeamLevel.objects.all()
@@ -284,7 +289,7 @@ def get_team_levels(request: HttpRequest):
 
 @router.get('/team/list', response=list[TeamOut], tags=[ApiDocTags.TEAM])
 def get_teams(request: HttpRequest):
-    teams = Team.objects.filter(is_archived=False)
+    teams = Team.objects.prefetch_related('age_group', 'level', 'division').filter(is_archived=False)
     team_ids = teams.values_list('id', flat=True)
     current_season = get_current_season()
     team_seasons = TeamSeason.objects.filter(team_id__in=team_ids, season_id=current_season.id)
@@ -295,7 +300,7 @@ def get_teams(request: HttpRequest):
         if team_season is None:
             team_season = TeamSeason.objects.create(team=team, season=current_season, games_played=0,
                 goals_for=0, goals_against=0, wins=0, losses=0, ties=0)
-        teams_out.append(TeamOut(id=team.id, age_group=team.age_group, level_id=team.level_id, level_name=team.level.name,
+        teams_out.append(TeamOut(id=team.id, age_group=team.age_group.name, level_id=team.level_id, level_name=team.level.name,
             division_id=team.division_id, division_name=team.division.name,
             name=team.name, abbreviation=team.abbreviation, city=team.city,
             games_played=team_season.games_played, goals_for=team_season.goals_for, goals_against=team_season.goals_against,
@@ -304,11 +309,11 @@ def get_teams(request: HttpRequest):
 
 @router.get('/team/{team_id}', response=TeamOut, tags=[ApiDocTags.TEAM])
 def get_team(request: HttpRequest, team_id: int):
-    team = get_object_or_404(Team, id=team_id)
+    team = get_object_or_404(Team.objects.prefetch_related('age_group', 'level', 'division'), id=team_id)
     current_season = get_current_season()
     team_season, _ = TeamSeason.objects.get_or_create(team=team, season=current_season,
         defaults={'games_played': 0, 'goals_for': 0, 'goals_against': 0, 'wins': 0, 'losses': 0, 'ties': 0})
-    return TeamOut(id=team.id, age_group=team.age_group, level_id=team.level_id, level_name=team.level.name,
+    return TeamOut(id=team.id, age_group=team.age_group.name, level_id=team.level_id, level_name=team.level.name,
         division_id=team.division_id, division_name=team.division.name,
         name=team.name, abbreviation=team.abbreviation, city=team.city,
         games_played=team_season.games_played, goals_for=team_season.goals_for, goals_against=team_season.goals_against,
@@ -325,7 +330,13 @@ def add_team(request: HttpRequest, data: TeamIn, logo: File[UploadedFile] = None
         return 403, {"message": "You are not authorized to add a team."}
     try:
         with transaction.atomic(using='hockey'):
-            team = Team(**data.dict())
+            age_group = TeamAgeGroup.objects.filter(name=data.age_group).first()
+            if age_group is None:
+                age_group = TeamAgeGroup.objects.create(name=data.age_group)
+            data_dict = data.dict()
+            del data_dict['age_group']
+            team = Team(**data_dict)
+            team.age_group = age_group
             team.logo = logo
             team.save()
             get_no_goalie(team.id) # Creates the no goalie for the team if it doesn't exist.
@@ -338,12 +349,19 @@ def update_team(request: HttpRequest, team_id: int, data: PatchDict[TeamIn], log
     if not is_user_coach(request.user, team_id):
         return 403, {"message": "You are not authorized to update this team."}
     team = get_object_or_404(Team, id=team_id)
-    for attr, value in data.items():
-        setattr(team, attr, value)
-    if logo is not None:
-        team.logo = logo
     try:
-        team.save()
+        with transaction.atomic(using='hockey'):
+            for attr, value in data.items():
+                if attr == 'age_group':
+                    age_group = TeamAgeGroup.objects.filter(name=value).first()
+                    if age_group is None:
+                        age_group = TeamAgeGroup.objects.create(name=value)
+                    team.age_group = age_group
+                else:
+                    setattr(team, attr, value)
+            if logo is not None:
+                team.logo = logo
+            team.save()
     except IntegrityError:
         return resp.entry_already_exists("Team")
     return 204, None

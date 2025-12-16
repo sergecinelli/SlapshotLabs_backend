@@ -19,6 +19,16 @@ class TeamLevel(models.Model):
     class Meta:
         db_table = "team_levels"
 
+class TeamAgeGroup(models.Model):
+
+    name = models.CharField(max_length=5, unique=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        db_table = "team_age_groups"
+
 class Division(models.Model):
 
     name = models.CharField(max_length=50)
@@ -42,7 +52,7 @@ class Season(models.Model):
 
 class Team(models.Model):
 
-    age_group = models.CharField(max_length=3)
+    age_group = models.ForeignKey(TeamAgeGroup, on_delete=models.RESTRICT)
     level = models.ForeignKey(TeamLevel, on_delete=models.RESTRICT)
     division = models.ForeignKey(Division, on_delete=models.RESTRICT)
     name = models.CharField(max_length=150)
