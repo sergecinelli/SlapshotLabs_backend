@@ -46,7 +46,7 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = env('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env('DEBUG')
+DEBUG = True # TODO: Change to env('DEBUG')
 
 # If True, reads media and static files from the host machine.
 USE_LOCAL_STORAGE = env('USE_LOCAL_STORAGE')
