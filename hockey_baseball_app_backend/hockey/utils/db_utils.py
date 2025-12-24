@@ -162,6 +162,7 @@ def form_game_goalie_out(game_goalie: GameGoalie) -> GameGoalieOut:
         score=f"({result}) {game.home_goals} - {game.away_goals}",
         first_name=game_goalie.goalie.player.first_name,
         last_name=game_goalie.goalie.player.last_name,
+        number=game_goalie.goalie.player.number,
         goals_against=game_goalie.goals_against,
         shots_against=game_goalie.shots_on_goal,
         saves=game_goalie.saves,
@@ -189,6 +190,7 @@ def form_game_player_out(game_player: GamePlayer) -> GamePlayerOut:
         score=f"({result}) {game.home_goals} - {game.away_goals}",
         first_name=game_player.player.first_name,
         last_name=game_player.player.last_name,
+        number=game_player.player.number,
         goals=game_player.goals,
         assists=game_player.assists,
         shots_on_goal=game_player.shots_on_goal,
@@ -197,7 +199,7 @@ def form_game_player_out(game_player: GamePlayer) -> GamePlayerOut:
         turnovers=game_player.turnovers,
         faceoffs=game_player.faceoffs,
         faceoffs_won=game_player.faceoffs_won,
-        faceoff_win_percents=(game_player.faceoffs_won / game_player.faceoffs) * 100 if game_player.faceoffs > 0 else 0,
+        faceoff_win_percents=round((game_player.faceoffs_won / game_player.faceoffs) * 100 if game_player.faceoffs > 0 else 0),
         points=game_player.points
     )
 
