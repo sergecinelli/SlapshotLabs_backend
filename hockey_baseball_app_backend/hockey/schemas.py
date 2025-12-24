@@ -441,6 +441,7 @@ class GoalieBaseOut(Schema):
     id: int
     first_name: str
     last_name: str
+    number: int
 
 class GameGoalieOut(GoalieBaseOut):
     season_name: str
@@ -459,6 +460,7 @@ class PlayerBaseOut(Schema):
     id: int
     first_name: str
     last_name: str
+    number: int
 
 class GamePlayerOut(PlayerBaseOut):
     season_name: str

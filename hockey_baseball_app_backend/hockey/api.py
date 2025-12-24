@@ -792,13 +792,17 @@ def get_game_players(request: HttpRequest, game_id: int):
     away_goalies = []
     away_players = []
     for home_goalie in game.home_goalies.all():
-        home_goalies.append(GoalieBaseOut(id=home_goalie.player_id, first_name=home_goalie.player.first_name, last_name=home_goalie.player.last_name))
+        home_goalies.append(GoalieBaseOut(id=home_goalie.player_id, first_name=home_goalie.player.first_name,
+            last_name=home_goalie.player.last_name, number=home_goalie.player.number))
     for away_goalie in game.away_goalies.all():
-        away_goalies.append(GoalieBaseOut(id=away_goalie.player_id, first_name=away_goalie.player.first_name, last_name=away_goalie.player.last_name))
+        away_goalies.append(GoalieBaseOut(id=away_goalie.player_id, first_name=away_goalie.player.first_name,
+            last_name=away_goalie.player.last_name, number=away_goalie.player.number))
     for home_player in game.home_players.all():
-        home_players.append(PlayerBaseOut(id=home_player.id, first_name=home_player.first_name, last_name=home_player.last_name))
+        home_players.append(PlayerBaseOut(id=home_player.id, first_name=home_player.first_name,
+            last_name=home_player.last_name, number=home_player.number))
     for away_player in game.away_players.all():
-        away_players.append(PlayerBaseOut(id=away_player.id, first_name=away_player.first_name, last_name=away_player.last_name))
+        away_players.append(PlayerBaseOut(id=away_player.id, first_name=away_player.first_name,
+            last_name=away_player.last_name, number=away_player.number))
     return GamePlayersOut(home_goalies=home_goalies, home_players=home_players, away_goalies=away_goalies, away_players=away_players)
 
 @router.get('/game-player/goalie/{goalie_id}', response=list[GameGoalieOut], tags=[ApiDocTags.GAME_PLAYER, ApiDocTags.STATS])
