@@ -443,7 +443,10 @@ class GoalieBaseOut(Schema):
     last_name: str
     number: int
 
-class GameGoalieOut(GoalieBaseOut):
+class GameGoalieOut(Schema):
+    id: int
+    first_name: str
+    last_name: str
     season_name: str
     date: datetime.date
     team_id: int
@@ -462,7 +465,10 @@ class PlayerBaseOut(Schema):
     last_name: str
     number: int
 
-class GamePlayerOut(PlayerBaseOut):
+class GamePlayerOut(Schema):
+    id: int
+    first_name: str
+    last_name: str
     season_name: str
     date: datetime.date
     team_id: int
