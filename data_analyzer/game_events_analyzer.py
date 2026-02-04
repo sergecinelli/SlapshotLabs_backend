@@ -609,7 +609,7 @@ try:
         if payload['type'] == 'game':
 
             if event.status not in [GameEventSystemStatus.NEW, GameEventSystemStatus.DEPRECATED]:
-                error_messages.append(f"ERROR: Game {event.id} has an unknown status: {event.status}.")
+                write_log(f"ERROR: Game {event.id} has an unknown status: {event.status}.")
                 continue
 
             is_add = (event.status == GameEventSystemStatus.NEW)
@@ -630,7 +630,7 @@ try:
         elif payload['type'] == 'game_event':
 
             if event.status not in [GameEventSystemStatus.NEW, GameEventSystemStatus.DEPRECATED]:
-                error_messages.append(f"ERROR: Game event {event.id} has an unknown status: {event.status}.")
+                write_log(f"ERROR: Game event {event.id} has an unknown status: {event.status}.")
                 continue
 
             is_add = (event.status == GameEventSystemStatus.NEW)
