@@ -505,9 +505,9 @@ def get_games_banner(request: HttpRequest):
             home_goals=game.home_goals, away_goals=game.away_goals, status=game.status))
     return games_out
 
-@router.get('/game/list/dashboard', response=GameDashboardOut, tags=[ApiDocTags.GAME])
+@router.get('/game/list/dashboard', response=GameDashboardOut, tags=[ApiDocTags.GAME], description="Returns a list of upcoming (including current) and previous games.")
 def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | None = None):
-    upcoming_games_qs = Game.objects.filter(status=1).select_related('rink', 'game_type_name', 'home_team', 'away_team').order_by('date')
+    upcoming_games_qs = Game.objects.filter(Q(status=1) | Q(status=2)).select_related('rink', 'game_type_name', 'home_team', 'away_team').order_by('date')
     previous_games_qs = Game.objects.filter(status=3).select_related('rink', 'game_type_name', 'home_team', 'away_team').order_by('-date')
 
     if team_id is not None:
