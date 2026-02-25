@@ -507,8 +507,8 @@ def get_games_banner(request: HttpRequest):
 
 @router.get('/game/list/dashboard', response=GameDashboardOut, tags=[ApiDocTags.GAME])
 def get_games_dashboard(request: HttpRequest, limit: int = 5, team_id: int | None = None):
-    upcoming_games_qs = Game.objects.filter(status=1).select_related('rink', 'game_type_name').order_by('date')
-    previous_games_qs = Game.objects.filter(status=3).select_related('rink', 'game_type_name').order_by('-date')
+    upcoming_games_qs = Game.objects.filter(status=1).select_related('rink', 'game_type_name', 'home_team', 'away_team').order_by('date')
+    previous_games_qs = Game.objects.filter(status=3).select_related('rink', 'game_type_name', 'home_team', 'away_team').order_by('-date')
 
     if team_id is not None:
         upcoming_games_qs = upcoming_games_qs.filter(Q(home_team_id=team_id) | Q(away_team_id=team_id))
@@ -553,11 +553,13 @@ def get_game_extra(request: HttpRequest, game_id: int):
     return GameExtendedOut(
         id=game.id,
         home_team_id=game.home_team_id,
+        home_team_name=game.home_team.name,
         home_start_goalie_id=game.home_start_goalie_id if game.home_start_goalie is not None else None,
         home_start_goalie_name=(game.home_start_goalie.player.first_name + " " + game.home_start_goalie.player.last_name
             if game.home_start_goalie is not None else None),
         home_goals=game.home_goals,
         away_team_id=game.away_team_id,
+        away_team_name=game.away_team.name,
         away_start_goalie_id=game.away_start_goalie_id if game.away_start_goalie is not None else None,
         away_start_goalie_name=(game.away_start_goalie.player.first_name + " " + game.away_start_goalie.player.last_name
             if game.away_start_goalie is not None else None),
@@ -574,6 +576,7 @@ def get_game_extra(request: HttpRequest, game_id: int):
         season_id=game.season_id,
         rink_id=game.rink_id,
         arena_id=game.arena_id,
+        arena_name=game.arena_name,
         home_team_game_type_record=home_team_record,
         away_team_game_type_record=away_team_record
     )

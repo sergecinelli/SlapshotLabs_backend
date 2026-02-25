@@ -408,10 +408,12 @@ class GameDashboardGameOut(Schema):
     # All fields from GameOut duplicated to avoid resolver method conflicts
     id: int
     home_team_id: int
+    home_team_name: str
     home_start_goalie_id: int | None
     home_start_goalie_name: str | None
     home_goals: int
     away_team_id: int
+    away_team_name: str
     away_start_goalie_id: int | None
     away_start_goalie_name: str | None
     away_goals: int
@@ -424,6 +426,7 @@ class GameDashboardGameOut(Schema):
     time: datetime.time
     season_id: int | None = None
     arena_id: int
+    arena_name: str | None
     rink_id: int | None = None
     analysis: str | None = None
     game_period_id: int | None = None

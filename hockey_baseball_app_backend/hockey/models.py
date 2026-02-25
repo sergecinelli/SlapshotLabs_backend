@@ -556,6 +556,13 @@ class Game(models.Model):
         return None
 
     @property
+    def arena_name(self) -> str | None:
+        """Returns the name of the related arena, or None if arena is not set."""
+        if self.rink is not None and self.rink.arena is not None:
+            return self.rink.arena.name
+        return None
+
+    @property
     def game_type_name_str(self) -> str | None:
         """Returns the name of the related game_type_name, or None if game_type_name is not set."""
         if self.game_type_name is not None:
