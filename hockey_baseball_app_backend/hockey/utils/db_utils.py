@@ -4,8 +4,8 @@ from typing import Any
 from django.db import IntegrityError
 from django.db.models.query import QuerySet
 
-from hockey.models import CustomEvents, DefensiveZoneExit, Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Highlight, HighlightReel, HighlightUserAccess, OffensiveZoneEntry, Player, PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, Turnovers
-from hockey.schemas import GameDashboardGameOut, GameEventIn, GameGoalieOut, GameOut, GamePlayerOut, GoalieOut, HighlightIn, PlayerOut
+from hockey.models import Analytics, CustomEvents, DefensiveZoneExit, Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Highlight, HighlightReel, HighlightUserAccess, OffensiveZoneEntry, Player, PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, Turnovers
+from hockey.schemas import AnalysisObject, AnalyticsGameOut, AnalyticsOut, AnalyticsPlayerOut, AnalyticsTeamOut, GameDashboardGameOut, GameEventIn, GameGoalieOut, GameOut, GamePlayerOut, GoalieOut, HighlightIn, PlayerOut
 from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, EventName, GoalType
 
 
@@ -34,6 +34,19 @@ def get_game_from_dashboard_home_or_away(home_or_away: DefensiveZoneExit | Offen
         return home_or_away.home_game
     else:
         return home_or_away.away_game
+
+def fetch_analytics_list(object: AnalysisObject, object_id: int | None = None) -> list[AnalyticsOut] | None:
+    """Returns a filtered list of analytics, or None if object is invalid."""
+    analytics = Analytics.objects.select_related('team', 'player', 'game').order_by('-date', '-time')
+    if object == AnalysisObject.TEAM:
+        analytics = analytics.filter(team_id=object_id) if object_id is not None else analytics.filter(team_id__isnull=False)
+    elif object == AnalysisObject.PLAYER:
+        analytics = analytics.filter(player_id=object_id) if object_id is not None else analytics.filter(player_id__isnull=False)
+    elif object == AnalysisObject.GAME:
+        analytics = analytics.filter(game_id=object_id) if object_id is not None else analytics.filter(game_id__isnull=False)
+    else:
+        return None
+    return [form_analytics_out(a) for a in analytics]
 
 # region No goalie
 
@@ -229,6 +242,21 @@ def form_game_dashboard_game_out(game: Game) -> GameDashboardGameOut:
         game_period_name=game.game_period.name if game.game_period is not None else None,
     )
 
+def form_analytics_out(analytics: Analytics) -> AnalyticsOut:
+    game = (AnalyticsGameOut(id=analytics.game.id, home_team_id=analytics.game.home_team_id,
+        home_team_name=analytics.game.home_team.name, away_team_id=analytics.game.away_team_id,
+        away_team_name=analytics.game.away_team.name, date=analytics.game.date, time=analytics.game.time)
+        if analytics.game is not None else None)
+    player = (AnalyticsPlayerOut(id=analytics.player.id, first_name=analytics.player.first_name,
+        last_name=analytics.player.last_name, number=analytics.player.number)
+        if analytics.player is not None else None)
+    team = (AnalyticsTeamOut(id=analytics.team.id, name=analytics.team.name,
+        abbreviation=analytics.team.abbreviation, city=analytics.team.city)
+        if analytics.team is not None else None)
+    return AnalyticsOut(id=analytics.id, author=analytics.author, title=analytics.title,
+        analysis=analytics.analysis, date=analytics.date, time=analytics.time, team=team,
+        player=player, game=game)
+        
 # endregion Form outputs
 
 # region Game events updates

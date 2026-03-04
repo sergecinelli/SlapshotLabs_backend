@@ -74,5 +74,6 @@ class ApiDocTags:
     GAME_EVENT: Final[str] = "Hockey - Game Event"
     STATS: Final[str] = "Hockey - Statistics"
     SPRAY_CHART: Final[str] = "Hockey - Spray Charts"
+    ANALYTICS: Final[str] = "Hockey - Analytics"
     HIGHLIGHT_REEL: Final[str] = "Hockey - Highlight Reel"
     VIDEO_LIBRARY: Final[str] = "Hockey - Video Library"

@@ -4,7 +4,7 @@ from django.apps import apps
 from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME
 from hockey.utils.db_utils import is_no_goalie_object
 
-from .models import (Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod,
+from .models import (Analytics, Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod,
                      GamePlayer, GameType, Goalie, OffensiveZoneEntry, Player, PlayerPosition, PlayerTransaction,
                      Season, ShotType, Shots, Team, TeamAgeGroup, TeamLevel, TeamSeason, GameTypeName, Turnovers)
 
@@ -151,6 +151,12 @@ class TeamSeasonAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = ['team__name', 'season__name']
     ordering = ['team__name', 'season__name']
     search_fields = ['team__name', 'season__name']
+
+@admin.register(Analytics)
+class AnalyticsAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
+    list_display = ['author', 'title', 'date', 'time', 'team__name', 'player__last_name', 'player__first_name', 'game__date']
+    ordering = ['-date', '-time']
+    search_fields = ['author', 'title', 'date', 'time', 'team__name', 'player__last_name', 'player__first_name', 'game__date']
 
 app = apps.get_app_config('hockey')
 

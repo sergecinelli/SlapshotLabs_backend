@@ -718,6 +718,26 @@ class CustomEvents(models.Model):
     class Meta:
         db_table = "custom_events"
 
+class Analytics(models.Model):
+    author = models.CharField(max_length=150)
+    title = models.CharField(max_length=150)
+    analysis = models.TextField()
+    date = models.DateField()
+    time = models.TimeField()
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True, blank=True)
+    player = models.ForeignKey(Player, on_delete=models.CASCADE, null=True, blank=True)
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, null=True, blank=True)
+    
+    user_id = models.IntegerField()
+    """User ID reference. Not a foreign key because the users database is separate. Use `User.objects.using('default').get(id=user_id)` to access the user."""
+
+    def __str__(self):
+        return f"{self.author} - {self.date} - {self.time} - {self.title}"
+
+    class Meta:
+        db_table = "analytics"
+        unique_together = ('author', 'date', 'time', 'team', 'player', 'game')
+
 class HighlightReel(models.Model):
     name = models.CharField(max_length=150)
     description = models.TextField()

@@ -1,6 +1,5 @@
 import datetime
-from types import SimpleNamespace
-from typing import Any, Optional
+from enum import StrEnum
 from ninja import Field, Schema
 
 from hockey.models import Game, Highlight, TeamSeason
@@ -694,5 +693,54 @@ class VideoLibraryOut(VideoLibraryIn):
     id: int
     added_by: str
     date: datetime.date
+
+# endregion
+
+# region Analytics
+
+class AnalyticsIn(Schema):
+    author: str
+    title: str
+    analysis: str
+    team_id: int | None = None
+    player_id: int | None = None
+    game_id: int | None = None
+
+class AnalyticsTeamOut(Schema):
+    id: int
+    name: str
+    abbreviation: str | None
+    city: str
+
+class AnalyticsPlayerOut(Schema):
+    id: int
+    first_name: str
+    last_name: str
+    number: int
+
+class AnalyticsGameOut(Schema):
+    id: int
+    home_team_id: int
+    home_team_name: str
+    away_team_id: int
+    away_team_name: str
+    date: datetime.date
+    time: datetime.time
+
+class AnalyticsOut(Schema):
+    id: int
+    author: str
+    title: str
+    analysis: str
+    date: datetime.date
+    time: datetime.time
+    team: AnalyticsTeamOut | None = None
+    player: AnalyticsPlayerOut | None = None
+    game: AnalyticsGameOut | None = None
+
+class AnalysisObject(StrEnum):
+    TEAM = "team"
+    PLAYER = "player"
+    GAME = "game"
 
 # endregion

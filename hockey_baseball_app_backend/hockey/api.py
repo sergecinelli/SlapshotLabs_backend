@@ -8,7 +8,7 @@ from django.db.models.deletion import RestrictedError
 from django.forms.models import model_to_dict
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
-from ninja import File, Router, PatchDict
+from ninja import File, Query, Router, PatchDict
 from ninja.files import UploadedFile
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest, FileResponse
@@ -26,7 +26,7 @@ from hockey.utils.event_analysis_serializer import serialize_game, serialize_gam
 from hockey.utils.formulas import get_team_points
 from users.utils.roles import is_user_admin, is_user_coach
 
-from .schemas import (ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut,
+from .schemas import (AnalysisObject, AnalyticsIn, AnalyticsOut, ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut,
                       GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut,
                       GameSprayChartFilters, GameTypeOut, GameTypeRecordOut, GoalieBaseOut, GoalieSeasonOut,
@@ -36,13 +36,13 @@ from .schemas import (ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZon
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, PlayerTeamSeasonOut, SeasonIn,
                       SeasonOut, ShotsIn, ShotsOut, SprayChartFilters,
                       TeamIn, TeamOut, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
-from .models import (Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
+from .models import (Analytics, Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, GoalieTeamSeason, Highlight, HighlightReel, HighlightUserAccess, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, PlayerTeamSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamAgeGroup, TeamLevel, TeamSeason, GameTypeName,
                      Turnovers, VideoLibrary)
 from .utils import api_response_templates as resp
-from .utils.db_utils import (create_highlight, form_game_dashboard_game_out, form_game_goalie_out, form_game_player_out, form_goalie_out,
-                             form_player_out, get_current_season,
+from .utils.db_utils import (create_highlight, form_analytics_out, form_game_dashboard_game_out, form_game_goalie_out, form_game_player_out, form_goalie_out,
+                             form_player_out, fetch_analytics_list, get_current_season,
                              get_game_current_goalies, get_game_from_dashboard_home_or_away, get_no_goalie, is_no_goalie_dict, is_no_goalie_object, update_game_faceoffs_from_event,
                              update_game_shots_from_event, update_game_turnovers_from_event)
 
@@ -1085,6 +1085,58 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
     except ValueError as e:
         return 400, {"message": str(e)}
 
+    return 204, None
+
+# endregion
+
+# region Analytics
+
+@router.get('/analytics/list/{object}', response={200: list[AnalyticsOut], 400: Message}, tags=[ApiDocTags.ANALYTICS])
+def get_analytics_list(request: HttpRequest, object: AnalysisObject):
+    result = fetch_analytics_list(object)
+    return (400, {"message": "Invalid object."}) if result is None else result
+
+@router.get('/analytics/list/{object}/{id}', response={200: list[AnalyticsOut], 400: Message}, tags=[ApiDocTags.ANALYTICS])
+def get_analytics_list_by_object_id(request: HttpRequest, object: AnalysisObject, id: int):
+    result = fetch_analytics_list(object, id)
+    return (400, {"message": "Invalid object."}) if result is None else result
+
+@router.get('/analytics/{analytics_id}', response=AnalyticsOut, tags=[ApiDocTags.ANALYTICS])
+def get_analytics(request: HttpRequest, analytics_id: int):
+    analytics = get_object_or_404(Analytics, id=analytics_id)
+    return form_analytics_out(analytics)
+
+@router.post('/analytics', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.ANALYTICS])
+def add_analytics(request: HttpRequest, data: AnalyticsIn):
+    analytics = Analytics.objects.create(author=data.author, title=data.title, analysis=data.analysis,
+        date=datetime.datetime.now(datetime.timezone.utc).date(),
+        time=datetime.datetime.now(datetime.timezone.utc).time(),
+        team_id=data.team_id, player_id=data.player_id, game_id=data.game_id, user_id=request.user.id)
+    analytics.full_clean()
+    analytics.save()
+    return {"id": analytics.id}
+
+@router.put('/analytics/{analytics_id}', response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.ANALYTICS])
+def update_analytics(request: HttpRequest, analytics_id: int, data: AnalyticsIn):
+    analytics = get_object_or_404(Analytics, id=analytics_id)
+    if analytics.user_id != request.user.id and not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to update this analytics."}
+    analytics.title = data.title
+    analytics.analysis = data.analysis
+    analytics.team_id = data.team_id
+    analytics.player_id = data.player_id
+    analytics.game_id = data.game_id
+    analytics.date = datetime.datetime.now(datetime.timezone.utc).date()
+    analytics.time = datetime.datetime.now(datetime.timezone.utc).time()
+    analytics.save()
+    return 204, None
+
+@router.delete('/analytics/{analytics_id}', response={204: None, 403: Message}, tags=[ApiDocTags.ANALYTICS])
+def delete_analytics(request: HttpRequest, analytics_id: int):
+    analytics = get_object_or_404(Analytics, id=analytics_id)
+    if analytics.user_id != request.user.id and not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to delete this analytics."}
+    analytics.delete()
     return 204, None
 
 # endregion
