@@ -722,8 +722,10 @@ class AnalyticsGameOut(Schema):
     id: int
     home_team_id: int
     home_team_name: str
+    home_goals: int
     away_team_id: int
     away_team_name: str
+    away_goals: int
     date: datetime.date
     time: datetime.time
 

@@ -244,8 +244,9 @@ def form_game_dashboard_game_out(game: Game) -> GameDashboardGameOut:
 
 def form_analytics_out(analytics: Analytics) -> AnalyticsOut:
     game = (AnalyticsGameOut(id=analytics.game.id, home_team_id=analytics.game.home_team_id,
-        home_team_name=analytics.game.home_team.name, away_team_id=analytics.game.away_team_id,
-        away_team_name=analytics.game.away_team.name, date=analytics.game.date, time=analytics.game.time)
+        home_team_name=analytics.game.home_team.name, home_goals=analytics.game.home_goals,
+        away_team_id=analytics.game.away_team_id, away_team_name=analytics.game.away_team.name,
+        away_goals=analytics.game.away_goals, date=analytics.game.date, time=analytics.game.time)
         if analytics.game is not None else None)
     player = (AnalyticsPlayerOut(id=analytics.player.id, first_name=analytics.player.first_name,
         last_name=analytics.player.last_name, number=analytics.player.number)
