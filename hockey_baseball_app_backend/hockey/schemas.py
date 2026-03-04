@@ -742,6 +742,7 @@ class AnalyticsOut(Schema):
 
 class AnalysisObject(StrEnum):
     TEAM = "team"
+    GOALIE = "goalie"
     PLAYER = "player"
     GAME = "game"
 

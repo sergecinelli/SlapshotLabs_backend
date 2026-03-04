@@ -40,8 +40,16 @@ def fetch_analytics_list(object: AnalysisObject, object_id: int | None = None) -
     analytics = Analytics.objects.select_related('team', 'player', 'game').order_by('-date', '-time')
     if object == AnalysisObject.TEAM:
         analytics = analytics.filter(team_id=object_id) if object_id is not None else analytics.filter(team_id__isnull=False)
+    elif object == AnalysisObject.GOALIE:
+        analytics = analytics.filter(player_id__isnull=False,
+            player__position__name=GOALIE_POSITION_NAME)
+        if object_id is not None:
+            analytics = analytics.filter(player_id=object_id)
     elif object == AnalysisObject.PLAYER:
-        analytics = analytics.filter(player_id=object_id) if object_id is not None else analytics.filter(player_id__isnull=False)
+        analytics = analytics.filter(player_id__isnull=False).\
+            exclude(player__position__name=GOALIE_POSITION_NAME)
+        if object_id is not None:
+            analytics = analytics.filter(player_id=object_id)
     elif object == AnalysisObject.GAME:
         analytics = analytics.filter(game_id=object_id) if object_id is not None else analytics.filter(game_id__isnull=False)
     else:
