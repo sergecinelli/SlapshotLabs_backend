@@ -6,7 +6,10 @@ from django.conf import settings
 from django.template.loader import render_to_string
 
 
-def invite_users_to_website(emails: list[str], invited_by: CustomUser, invitation_details: dict, messages_addition: str = ""):
+def invite_users_to_website(emails: list[str], invited_by: CustomUser, invitation_details: dict, messages_addition: str = "") -> list[str]:
+    """Invite users to the website.
+    Returns a list of emails that failed to be invited."""
+    failed_emails = []
     for email in emails:
         invitation = UserInvitation.objects.filter(email=email, invited_by=invited_by, invitation_details=invitation_details).first()
         if invitation:
@@ -45,7 +48,8 @@ def invite_users_to_website(emails: list[str], invited_by: CustomUser, invitatio
                 invitation.send_email_error_traceback = traceback.format_exc()
                 invitation.send_email_error_timestamp = datetime.datetime.now(datetime.timezone.utc)
                 invitation.save()
-                raise e
+                failed_emails.append(email)
             else:
                 invitation.invited_at = datetime.datetime.now(datetime.timezone.utc)
                 invitation.save()
+    return failed_emails

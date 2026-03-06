@@ -1181,6 +1181,8 @@ def update_analytics_access(request: HttpRequest, analytics_id: int, emails: lis
     users_to_allow_ids = list(users_to_allow.values_list('id', flat=True))
     users_to_invite = [email for email in emails if email not in users_to_allow.values_list('email', flat=True)]
     access_to_remove = AnalyticsUserAccess.objects.filter(analytics=analytics).exclude(user_id__in=users_to_allow_ids)
+    invitations_to_delete = UserInvitation.objects.using('default').filter(invited_by=request.user.id, invitation_details__id=analytics_id).\
+        exclude(email__in=emails).all()
     try:
         with transaction.atomic(using='hockey'):
             for access in access_to_remove:
@@ -1188,20 +1190,30 @@ def update_analytics_access(request: HttpRequest, analytics_id: int, emails: lis
             for user_id in users_to_allow_ids:
                 if not AnalyticsUserAccess.objects.filter(analytics=analytics, user_id=user_id).exists():
                     AnalyticsUserAccess.objects.create(analytics=analytics, user_id=user_id)
-            # Send emails to users to invite.
-            if analytics.team_id is not None:
-                part = "teams"
-            elif analytics.player_id is not None:
-                part = "players"
-            elif analytics.game_id is not None:
-                part = "games"
-            else:
-                part = ""
-            invite_users_to_website(users_to_invite, request.user,
-                                    {"app": "hockey", "object": "analytics", "part": part, "id": analytics.id},
-                                    messages_addition=f"to access the shared analytics")
+            if len(invitations_to_delete) > 0:
+                with transaction.atomic(using='default'):
+                    for invitation in invitations_to_delete:
+                        invitation.delete()
+            # DO NOT RUN HOCKEY DATABASE QUERIES HERE BECAUSE THE USERS (default) TRANSACTION IS ALREADY COMMITTED.
+            # RUN HOCKEY DATABASE QUERIES BEFORE "with transaction.atomic(using='default'):"
     except IntegrityError as e:
         return 400, {"message": str(e)}
+
+    # Send emails to users to invite.
+    if analytics.team_id is not None:
+        part = "teams"
+    elif analytics.player_id is not None:
+        part = "players"
+    elif analytics.game_id is not None:
+        part = "games"
+    else:
+        part = ""
+    failed_emails = invite_users_to_website(users_to_invite, request.user,
+        {"app": "hockey", "object": "analytics", "part": part, "id": analytics.id},
+        messages_addition=f"to access the shared analytics")
+    if len(failed_emails) > 0:
+        return 400, {"message": f"Failed to invite users: {', '.join(failed_emails)}"}
+    
     return 204, None
 
 @router.delete('/analytics/{analytics_id}', response={204: None, 403: Message}, tags=[ApiDocTags.ANALYTICS])
