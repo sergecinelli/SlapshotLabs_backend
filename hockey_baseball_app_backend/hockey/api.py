@@ -25,10 +25,11 @@ from hockey.utils.constants import (GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, 
                                     ApiDocTags)
 from hockey.utils.event_analysis_serializer import serialize_game, serialize_game_event
 from hockey.utils.formulas import get_team_points
+from users.models import UserInvitation
 from users.utils.roles import is_user_admin, is_user_coach
 from users.utils.emails_send import invite_users_to_website
 
-from .schemas import (AnalysisObject, AnalyticsIn, AnalyticsOut, ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut,
+from .schemas import (AnalysisObject, AnalyticsAccessOut, AnalyticsAccessStatuses, AnalyticsIn, AnalyticsOut, ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut,
                       GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
                       GameIn, GameLiveDataOut, GameOut, GamePeriodOut, GamePlayerOut, GamePlayersIn, GamePlayersOut,
                       GameSprayChartFilters, GameTypeOut, GameTypeRecordOut, GoalieBaseOut, GoalieSeasonOut,
@@ -1137,7 +1138,41 @@ def update_analytics(request: HttpRequest, analytics_id: int, data: AnalyticsIn)
     analytics.save()
     return 204, None
 
-@router.put('/analytics/{analytics_id}/access', response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.ANALYTICS])
+@router.get('/analytics/{analytics_id}/access', response={200: list[AnalyticsAccessOut], 403: Message},
+    description=("Get the list of users with access to an analytics.\n\n"
+                 "Returns a list of users with access to the analytics."),
+    tags=[ApiDocTags.ANALYTICS])
+def get_analytics_access(request: HttpRequest, analytics_id: int):
+    analytics = get_object_or_404(Analytics, id=analytics_id)
+    if analytics.user_id != request.user.id and not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to get the access to this analytics."}
+    
+    access_list = AnalyticsUserAccess.objects.filter(analytics=analytics).all()
+    user_with_access_ids = [access.user_id for access in access_list]
+    users_with_access = User.objects.using('default').filter(id__in=user_with_access_ids).all()
+    access_out_list = []
+    for user in users_with_access:
+        access_out_list.append(AnalyticsAccessOut(email=user.email, first_name=user.first_name, last_name=user.last_name,
+            status=AnalyticsAccessStatuses.ALLOWED, invited_at=None))
+    
+    invitations = UserInvitation.objects.filter(invited_by=analytics.user_id, invitation_details__id=analytics_id).all()
+    for invitation in invitations:
+        if invitation.invited_at is not None and invitation.is_expired():
+            status = AnalyticsAccessStatuses.INVITATION_EXPIRED
+        elif invitation.invited_at is not None:
+            status = AnalyticsAccessStatuses.INVITED
+        else:
+            status = AnalyticsAccessStatuses.INVITATION_FAILED
+        access_out_list.append(AnalyticsAccessOut(email=invitation.email, status=status, invited_at=invitation.invited_at))
+    
+    return access_out_list
+
+@router.put('/analytics/{analytics_id}/access', response={204: None, 400: Message, 403: Message},
+    description=("Update the access to an analytics.\n\n"
+                 "The body should be a list of email addresses of users to allow access to the analytics.\n\n"
+                 "If an email address is not specified but the corresponding user currently has access to the analytics, it will be removed from the access list.\n\n"
+                 "If an email address is specified but the corresponding user does not exist, the invitation will be sent to the email address."),
+    tags=[ApiDocTags.ANALYTICS])
 def update_analytics_access(request: HttpRequest, analytics_id: int, emails: list[str]):
     analytics = get_object_or_404(Analytics, id=analytics_id)
     if analytics.user_id != request.user.id and not is_user_admin(request.user):

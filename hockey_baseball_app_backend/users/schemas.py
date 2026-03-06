@@ -33,6 +33,11 @@ class UserOut(Schema):
     def resolve_role_name(obj) -> str:
         return Role.get_name_by_id(obj.role)
 
+# class UserListOut(Schema):
+#     email: str
+#     first_name: str
+#     last_name: str
+
 class UserEdit(Schema):
     email: Optional[str] = None
     first_name: Optional[str] = None

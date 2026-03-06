@@ -88,6 +88,11 @@ def sign_out(request: HttpRequest):
 def get_user(request: HttpRequest):
     return request.user
 
+# @router.get('/list', auth=SessionAuth(), response=list[UserListOut])
+# def list_users(request: HttpRequest):
+#     users = User.objects.all()
+#     return [UserListOut(email=user.email, first_name=user.first_name, last_name=user.last_name) for user in users]
+
 @router.post('/search', auth=SessionAuth(), response=list[UserSearchOut])
 def search_users(request: HttpRequest, data: UserSearch):
     users = User.objects

@@ -741,6 +741,19 @@ class AnalyticsOut(Schema):
     game: AnalyticsGameOut | None = None
     user_id: int
 
+class AnalyticsAccessStatuses(StrEnum):
+    ALLOWED = "allowed"
+    INVITED = "invited"
+    INVITATION_FAILED = "invitation_failed"
+    INVITATION_EXPIRED = "invitation_expired"
+
+class AnalyticsAccessOut(Schema):
+    email: str
+    first_name: str | None = None
+    last_name: str | None = None
+    status: AnalyticsAccessStatuses
+    invited_at: datetime.date | None = None
+
 class AnalysisObject(StrEnum):
     TEAM = "team"
     GOALIE = "goalie"
