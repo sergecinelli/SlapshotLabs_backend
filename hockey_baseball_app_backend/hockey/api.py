@@ -1163,7 +1163,8 @@ def get_analytics_access(request: HttpRequest, analytics_id: int):
             status = AnalyticsAccessStatuses.INVITED
         else:
             status = AnalyticsAccessStatuses.INVITATION_FAILED
-        access_out_list.append(AnalyticsAccessOut(email=invitation.email, status=status, invited_at=invitation.invited_at))
+        access_out_list.append(AnalyticsAccessOut(email=invitation.email, status=status,
+            invited_at=(invitation.invited_at.date() if invitation.invited_at is not None else None)))
     
     return access_out_list
 
