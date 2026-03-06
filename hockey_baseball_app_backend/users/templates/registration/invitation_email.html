@@ -1,0 +1,10 @@
+{% autoescape on %}
+Hello {{ email }},
+
+You are invited to access the Slapshot Labs website{{ messages_addition }}.
+
+Please click the link to access the website: <a href="{{ frontend_url }}/invitations/{{ invitation_token }}?redirect=/{{ invitation_object }}/{{ invitation_part }}">{{ frontend_url }}/invitations/{{ invitation_token }}?redirect=/{{ invitation_object }}/{{ invitation_part }}</a>
+
+Thanks,
+The Slapshot Labs Team
+{% endautoescape %}

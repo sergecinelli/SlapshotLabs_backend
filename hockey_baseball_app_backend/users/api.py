@@ -12,8 +12,9 @@ from django.utils.http import urlsafe_base64_decode
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.middleware.csrf import get_token
-from .models import CustomUser
+from .models import CustomUser, UserInvitation
 from .schemas import CSRFTokenSchema, Message, ErrorDictSchema, UserIn, UserEdit, UserOut, SignInSchema, ResetConfirmSchema, ResetRequestSchema, UserSearch, UserSearchOut
+import hockey.utils.db_utils
 
 router = Router(tags=["Users"])
 
@@ -35,8 +36,21 @@ def get_csrf_token(request):
 @router.post('/signup', response={201: Message, 400: Message})
 def create_user(request: HttpRequest, data: UserIn):
     try:
+        if data.invitation_token:
+            invitation = UserInvitation.objects.get(invitation_token=data.invitation_token)
+            if invitation.email != data.email:
+                return 400, {'message': 'Invitation token does not match email.'}
+            if invitation.is_expired():
+                invitation.delete()
+                return 400, {'message': 'Invitation has expired. Please request a new invitation.'}
         password_validation.validate_password(data.password)
-        User.objects.create_user(email=data.email, password=data.password, first_name=data.first_name, last_name=data.last_name)
+        user = User.objects.create_user(email=data.email, password=data.password, first_name=data.first_name, last_name=data.last_name)
+        if data.invitation_token:
+            if invitation.invitation_details.get('app') == 'hockey':
+                hockey.utils.db_utils.create_user_access(user.id, invitation.invitation_details)
+            else:
+                raise ValueError("Invalid invitation details.")
+            invitation.delete()
     except ValidationError:
         return 400, {'message': 'Password is too simple or short.'}
     except IntegrityError:
@@ -51,6 +65,18 @@ def sign_in(request: HttpRequest, credentials: SignInSchema):
     login(request, user)
     if credentials.remember_me:
         request.session.set_expiry(31622400)    # 366 days.
+    if credentials.invitation_token:
+        invitation = UserInvitation.objects.get(invitation_token=credentials.invitation_token)
+        if invitation.email != credentials.email:
+            return 403, {'message': 'Invitation token does not match email.'}
+        if invitation.is_expired():
+            invitation.delete()
+            return 403, {'message': 'Invitation has expired. Please request a new invitation.'}
+        if invitation.invitation_details.get('app') == 'hockey':
+            hockey.utils.db_utils.create_user_access(user.id, invitation.invitation_details)
+        else:
+            raise ValueError("Invalid invitation details.")
+        invitation.delete()
     return 204, None
 
 @router.get('/signout', auth=SessionAuth(), response={204: None})
@@ -107,6 +133,34 @@ def edit_user(request: HttpRequest, data: UserEdit):
 
     return 204, None
 
+@router.get('/invitations/{invitation_token}', auth=None, response={200: Message, 401: Message, 403: Message, 404: Message})
+def accept_invitation(request: HttpRequest, invitation_token: str):
+    try:
+        invitation = UserInvitation.objects.get(invitation_token=invitation_token)
+    except UserInvitation.DoesNotExist:
+        return 403, {'message': 'Invalid invitation token.'}
+
+    if invitation.is_expired():
+        invitation.delete()
+        return 403, {'message': 'Invitation has expired. Please request a new invitation.'}
+
+    if not request.user.is_authenticated:
+        user_exists = User.objects.filter(email=invitation.email).exists()
+        if user_exists:
+            return 401, {'message': 'Please sign in to accept the invitation.'}
+        return 404, {'message': 'Account not found.'}
+
+    if invitation.email != request.user.email:
+        return 403, {'message': 'Invitation token does not match your account email.'}
+
+    if invitation.invitation_details.get('app') == 'hockey':
+        hockey.utils.db_utils.create_user_access(request.user.id, invitation.invitation_details)
+    else:
+        raise ValueError("Invalid invitation details.")
+    
+    invitation.delete()
+    return 200, {'message': 'Invitation accepted.'}
+
 # region Password reset.
 
 @router.post("/passwordreset/", response={200: Message, 400: ErrorDictSchema})
@@ -117,8 +171,10 @@ def request_password_reset(request: HttpRequest, data: ResetRequestSchema):
             request=request,
             use_https=request.is_secure(),
             from_email=None,  # DEFAULT_FROM_EMAIL is used.
-            email_template_name='registration/password_reset_email1.html',
-            subject_template_name='registration/password_reset_subject1.txt'
+            email_template_name='registration/password_reset_email1.txt',
+            subject_template_name='registration/password_reset_subject1.txt',
+            html_email_template_name='registration/password_reset_email1.html',
+            extra_email_context={'frontend_url': settings.FRONTEND_URL}
         )
         return {"message": "Email has been sent successfully."}
     return 400, {"errors": form.errors}

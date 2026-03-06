@@ -8,6 +8,7 @@ class UserIn(Schema):
     first_name: str
     last_name: str
     password: str
+    invitation_token: Optional[str] = None
 
 class UserOut(Schema):
     id: int
@@ -60,6 +61,7 @@ class SignInSchema(Schema):
     email: str
     password: str
     remember_me: bool = False
+    invitation_token: Optional[str] = None
 
 class Message(Schema):
     message: str

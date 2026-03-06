@@ -2,11 +2,14 @@ import datetime
 from typing import Any
 
 from django.db import IntegrityError
+from django.db.models import Q
 from django.db.models.query import QuerySet
 
-from hockey.models import Analytics, CustomEvents, DefensiveZoneExit, Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Highlight, HighlightReel, HighlightUserAccess, OffensiveZoneEntry, Player, PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, Turnovers
+from hockey.models import Analytics, AnalyticsUserAccess, CustomEvents, DefensiveZoneExit, Game, GameEventName, GameEvents, GameGoalie, GamePlayer, Goalie, GoalieSeason, Highlight, HighlightReel, HighlightUserAccess, OffensiveZoneEntry, Player, PlayerPosition, PlayerSeason, Season, ShotType, Shots, Team, Turnovers
 from hockey.schemas import AnalysisObject, AnalyticsGameOut, AnalyticsOut, AnalyticsPlayerOut, AnalyticsTeamOut, GameDashboardGameOut, GameEventIn, GameGoalieOut, GameOut, GamePlayerOut, GoalieOut, HighlightIn, PlayerOut
 from hockey.utils.constants import GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, EventName, GoalType
+
+from users.utils.roles import is_user_admin
 
 
 def get_current_season(date: datetime.date | None = None) -> Season | None:
@@ -35,9 +38,11 @@ def get_game_from_dashboard_home_or_away(home_or_away: DefensiveZoneExit | Offen
     else:
         return home_or_away.away_game
 
-def fetch_analytics_list(object: AnalysisObject, object_id: int | None = None) -> list[AnalyticsOut] | None:
+def fetch_analytics_list(object: AnalysisObject, user, object_id: int | None = None) -> list[AnalyticsOut] | None:
     """Returns a filtered list of analytics, or None if object is invalid."""
-    analytics = Analytics.objects.select_related('team', 'player', 'game').order_by('-date', '-time')
+    analytics = Analytics.objects.select_related('team', 'player', 'game', 'users_with_access').order_by('-date', '-time')
+    if not is_user_admin(user):
+        analytics = analytics.filter(Q(user_id=user.id) | Q(users_with_access__user_id=user.id))
     if object == AnalysisObject.TEAM:
         analytics = analytics.filter(team_id=object_id) if object_id is not None else analytics.filter(team_id__isnull=False)
     elif object == AnalysisObject.GOALIE:
@@ -264,7 +269,7 @@ def form_analytics_out(analytics: Analytics) -> AnalyticsOut:
         if analytics.team is not None else None)
     return AnalyticsOut(id=analytics.id, author=analytics.author, title=analytics.title,
         analysis=analytics.analysis, date=analytics.date, time=analytics.time, team=team,
-        player=player, game=game)
+        player=player, game=game, user_id=analytics.user_id)
         
 # endregion Form outputs
 
@@ -419,3 +424,20 @@ def create_highlight(data: HighlightIn, highlight_reel: HighlightReel, user_id: 
     return highlight
 
 # endregion Create complex items
+
+# region Create user access
+
+def create_user_access(user_id: int, invitation_details: dict) -> None:
+    if invitation_details.get('app') == 'hockey':
+        if invitation_details.get('object') == 'analytics':
+            analytics = Analytics.objects.get(id=invitation_details.get('id'))
+            if analytics is not None:
+                AnalyticsUserAccess.objects.create(user_id=user_id, analytics=analytics)
+            else:
+                raise ValueError("Analytics not found")
+        else:
+            raise ValueError("Invalid object")
+    else:
+        raise ValueError("Invalid app")
+
+# endregion Create user access

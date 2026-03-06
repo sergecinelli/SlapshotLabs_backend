@@ -738,6 +738,14 @@ class Analytics(models.Model):
         db_table = "analytics"
         unique_together = ('author', 'date', 'time', 'team', 'player', 'game')
 
+class AnalyticsUserAccess(models.Model):
+    analytics = models.ForeignKey(Analytics, related_name='users_with_access', on_delete=models.CASCADE)
+    user_id = models.IntegerField()
+    """User ID reference. Not a foreign key because the users database is separate. Use `User.objects.using('default').get(id=user_id)` to access the user."""
+
+    class Meta:
+        db_table = "analytics_user_access"
+
 class HighlightReel(models.Model):
     name = models.CharField(max_length=150)
     description = models.TextField()

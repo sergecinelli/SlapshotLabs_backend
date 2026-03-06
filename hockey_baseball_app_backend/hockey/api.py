@@ -15,6 +15,7 @@ from django.http import HttpRequest, FileResponse
 from django.core.files import File as FileSaver
 from django.core.files.storage import default_storage
 from django.core.exceptions import ValidationError
+from django.core.mail import send_mail
 from faker import Faker
 import faker.providers
 from faker_animals import AnimalsProvider
@@ -25,6 +26,7 @@ from hockey.utils.constants import (GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, 
 from hockey.utils.event_analysis_serializer import serialize_game, serialize_game_event
 from hockey.utils.formulas import get_team_points
 from users.utils.roles import is_user_admin, is_user_coach
+from users.utils.emails_send import invite_users_to_website
 
 from .schemas import (AnalysisObject, AnalyticsIn, AnalyticsOut, ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut,
                       GameEventIn, GameEventOut, GameExtendedOut, GameGoalieOut,
@@ -36,7 +38,7 @@ from .schemas import (AnalysisObject, AnalyticsIn, AnalyticsOut, ArenaOut, Arena
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, PlayerTeamSeasonOut, SeasonIn,
                       SeasonOut, ShotsIn, ShotsOut, SprayChartFilters,
                       TeamIn, TeamOut, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
-from .models import (Analytics, Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
+from .models import (Analytics, AnalyticsUserAccess, Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, GoalieTeamSeason, Highlight, HighlightReel, HighlightUserAccess, OffensiveZoneEntry, Player,
                      PlayerPosition, PlayerSeason, PlayerTeamSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamAgeGroup, TeamLevel, TeamSeason, GameTypeName,
                      Turnovers, VideoLibrary)
@@ -1093,17 +1095,21 @@ def delete_game_event(request: HttpRequest, game_event_id: int):
 
 @router.get('/analytics/list/{object}', response={200: list[AnalyticsOut], 400: Message}, tags=[ApiDocTags.ANALYTICS])
 def get_analytics_list(request: HttpRequest, object: AnalysisObject):
-    result = fetch_analytics_list(object)
+    result = fetch_analytics_list(object, request.user)
     return (400, {"message": "Invalid object."}) if result is None else result
 
 @router.get('/analytics/list/{object}/{id}', response={200: list[AnalyticsOut], 400: Message}, tags=[ApiDocTags.ANALYTICS])
 def get_analytics_list_by_object_id(request: HttpRequest, object: AnalysisObject, id: int):
-    result = fetch_analytics_list(object, id)
+    result = fetch_analytics_list(object, request.user, id)
     return (400, {"message": "Invalid object."}) if result is None else result
 
-@router.get('/analytics/{analytics_id}', response=AnalyticsOut, tags=[ApiDocTags.ANALYTICS])
+@router.get('/analytics/{analytics_id}', response={200: AnalyticsOut, 403: Message}, tags=[ApiDocTags.ANALYTICS])
 def get_analytics(request: HttpRequest, analytics_id: int):
     analytics = get_object_or_404(Analytics, id=analytics_id)
+    if (analytics.user_id != request.user.id and
+        not analytics.users_with_access.filter(user_id=request.user.id).exists() and
+        not is_user_admin(request.user)):
+        return 403, {"message": "You are not authorized to view this analytics."}
     return form_analytics_out(analytics)
 
 @router.post('/analytics', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.ANALYTICS])
@@ -1129,6 +1135,38 @@ def update_analytics(request: HttpRequest, analytics_id: int, data: AnalyticsIn)
     analytics.date = datetime.datetime.now(datetime.timezone.utc).date()
     analytics.time = datetime.datetime.now(datetime.timezone.utc).time()
     analytics.save()
+    return 204, None
+
+@router.put('/analytics/{analytics_id}/access', response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.ANALYTICS])
+def update_analytics_access(request: HttpRequest, analytics_id: int, emails: list[str]):
+    analytics = get_object_or_404(Analytics, id=analytics_id)
+    if analytics.user_id != request.user.id and not is_user_admin(request.user):
+        return 403, {"message": "You are not authorized to update the access to this analytics."}
+    users_to_allow = User.objects.using('default').filter(email__in=emails)
+    users_to_allow_ids = list(users_to_allow.values_list('id', flat=True))
+    users_to_invite = [email for email in emails if email not in users_to_allow.values_list('email', flat=True)]
+    access_to_remove = AnalyticsUserAccess.objects.filter(analytics=analytics).exclude(user_id__in=users_to_allow_ids)
+    try:
+        with transaction.atomic(using='hockey'):
+            for access in access_to_remove:
+                access.delete()
+            for user_id in users_to_allow_ids:
+                if not AnalyticsUserAccess.objects.filter(analytics=analytics, user_id=user_id).exists():
+                    AnalyticsUserAccess.objects.create(analytics=analytics, user_id=user_id)
+            # Send emails to users to invite.
+            if analytics.team_id is not None:
+                part = "teams"
+            elif analytics.player_id is not None:
+                part = "players"
+            elif analytics.game_id is not None:
+                part = "games"
+            else:
+                part = ""
+            invite_users_to_website(users_to_invite, request.user,
+                                    {"app": "hockey", "object": "analytics", "part": part, "id": analytics.id},
+                                    messages_addition=f"to access the shared analytics")
+    except IntegrityError as e:
+        return 400, {"message": str(e)}
     return 204, None
 
 @router.delete('/analytics/{analytics_id}', response={204: None, 403: Message}, tags=[ApiDocTags.ANALYTICS])

@@ -739,6 +739,7 @@ class AnalyticsOut(Schema):
     team: AnalyticsTeamOut | None = None
     player: AnalyticsPlayerOut | None = None
     game: AnalyticsGameOut | None = None
+    user_id: int
 
 class AnalysisObject(StrEnum):
     TEAM = "team"

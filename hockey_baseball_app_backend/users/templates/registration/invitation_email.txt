@@ -1,0 +1,10 @@
+Hello {{ email }},
+
+You are invited to access the Slapshot Labs website{{ messages_addition }}.
+
+Please paste the link below into your browser:
+
+{{ frontend_url }}/invitations/{{ invitation_token }}?redirect=/{{ invitation_object }}/{{ invitation_part }}
+
+Thanks,
+The Slapshot Labs Team

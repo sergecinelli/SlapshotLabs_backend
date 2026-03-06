@@ -35,6 +35,7 @@ env = environ.Env(
     EMAIL_HOST_PASSWORD=(str, ''),
     DEFAULT_FROM_EMAIL=(str, 'noreply@example.com'),
     AWS_STORAGE_BUCKET_NAME=(str, 'my-hockey-app-backend-storage'),
+    FRONTEND_URL=(str, 'http://localhost:3000'),
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -242,3 +243,7 @@ EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL')
 
 PASSWORD_RESET_TIMEOUT = 1800
+
+FRONTEND_URL = env('FRONTEND_URL')
+
+INVITATION_EXPIRATION_DAYS = 7
