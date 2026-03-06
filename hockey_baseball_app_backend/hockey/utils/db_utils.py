@@ -40,7 +40,7 @@ def get_game_from_dashboard_home_or_away(home_or_away: DefensiveZoneExit | Offen
 
 def fetch_analytics_list(object: AnalysisObject, user, object_id: int | None = None) -> list[AnalyticsOut] | None:
     """Returns a filtered list of analytics, or None if object is invalid."""
-    analytics = Analytics.objects.select_related('team', 'player', 'game', 'users_with_access').order_by('-date', '-time')
+    analytics = Analytics.objects.select_related('team', 'player', 'game').order_by('-date', '-time')
     if not is_user_admin(user):
         analytics = analytics.filter(Q(user_id=user.id) | Q(users_with_access__user_id=user.id))
     if object == AnalysisObject.TEAM:
