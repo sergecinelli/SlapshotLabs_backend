@@ -7,7 +7,7 @@ from django.db import models
 from django.db.models import Q, Case, DateField, ExpressionWrapper, Index, UniqueConstraint, When, Value, F
 from django.db.models.functions import Concat
 
-from hockey.utils.constants import GOALIE_POSITION_NAME, GameStatus, GoalType, HighlightVisibility, IdName, RinkZone, get_constant_class_int_choices, get_constant_class_str_choices
+from hockey.utils.constants import GOALIE_POSITION_NAME, GameStatus, GoalType, HighlightVisibility, IdName, PlayerTryoutStatus, RinkZone, get_constant_class_int_choices, get_constant_class_str_choices
 
 class TeamLevel(models.Model):
 
@@ -53,6 +53,10 @@ class Season(models.Model):
 class Team(models.Model):
 
     age_group = models.ForeignKey(TeamAgeGroup, on_delete=models.RESTRICT)
+
+    birth_year = models.IntegerField(null=True, blank=True)
+    """Birth year of players in the team."""
+
     level = models.ForeignKey(TeamLevel, on_delete=models.RESTRICT)
     division = models.ForeignKey(Division, on_delete=models.RESTRICT)
     name = models.CharField(max_length=150)
@@ -70,7 +74,7 @@ class Team(models.Model):
 
         constraints = [
             models.UniqueConstraint(
-                fields=['name', 'city'],
+                fields=['name', 'birth_year', 'city'],
                 name='unique_team'
             )
         ]
@@ -126,7 +130,7 @@ class Player(models.Model):
 
     team = models.ForeignKey(Team, null=True, blank=True, on_delete=models.SET_NULL)
     position = models.ForeignKey(PlayerPosition, on_delete=models.RESTRICT)
-    number = models.IntegerField()
+    number = models.IntegerField(null=True, blank=True)
     photo = models.ImageField(upload_to='player_photo/', null=True, blank=True)
     analysis = models.TextField(null=True, blank=True)
 
@@ -265,16 +269,30 @@ class PlayerTransaction(models.Model):
 
     player = models.ForeignKey(Player, on_delete=models.CASCADE)
     season = models.ForeignKey(Season, on_delete=models.RESTRICT)
-    date = models.DateField()
-    team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True, blank=True)
-    number = models.IntegerField()
+    date = models.DateField(auto_now_add=True)
+    team = models.ForeignKey(Team, related_name='transactions', on_delete=models.SET_NULL, null=True, blank=True)
+    number = models.IntegerField(null=True, blank=True)
+    previous_team = models.ForeignKey(Team, related_name='transactions_from', on_delete=models.SET_NULL, null=True, blank=True)
+    previous_number = models.IntegerField(null=True, blank=True)
     description = models.TextField()
 
     def __str__(self):
-        return f"{self.player.first_name} {self.player.last_name} - {self.season}/{(self.season + 1)}"
+        return f"{self.player.first_name} {self.player.last_name} - {self.season.name} - {(self.team.name if self.team is not None else 'free agent')}"
 
     class Meta:
         db_table = "player_transactions"
+
+class PlayerTryout(models.Model):
+    player = models.ForeignKey(Player, related_name='tryouts', on_delete=models.CASCADE)
+    team = models.ForeignKey(Team, related_name='tryouts', on_delete=models.CASCADE)
+    status = models.CharField(max_length=50, choices=get_constant_class_str_choices(PlayerTryoutStatus))
+    date = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.player.first_name} {self.player.last_name} - {self.team.name}"
+
+    class Meta:
+        db_table = "player_tryouts"
 
 class Goalie(models.Model):
 
@@ -736,7 +754,12 @@ class Analytics(models.Model):
 
     class Meta:
         db_table = "analytics"
-        unique_together = ('author', 'date', 'time', 'team', 'player', 'game')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['author', 'date', 'time', 'team', 'player', 'game'],
+                name='unique_analytics'
+            )
+        ]
 
 class AnalyticsUserAccess(models.Model):
     analytics = models.ForeignKey(Analytics, related_name='users_with_access', on_delete=models.CASCADE)

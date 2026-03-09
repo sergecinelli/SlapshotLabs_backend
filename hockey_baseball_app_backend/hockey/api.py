@@ -21,7 +21,7 @@ import faker.providers
 from faker_animals import AnimalsProvider
 
 from hockey.utils.constants import (GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, NO_GOALIE_LAST_NAME, ApiDocTags,
-                                    EventName, GameEventSystemStatus, GameStatus, GoalType, HighlightVisibility, get_constant_class_int_choices,
+                                    EventName, GameEventSystemStatus, GameStatus, GoalType, HighlightVisibility, PlayerTryoutStatus, get_constant_class_int_choices,
                                     ApiDocTags)
 from hockey.utils.event_analysis_serializer import serialize_game, serialize_game_event
 from hockey.utils.formulas import get_team_points
@@ -36,12 +36,13 @@ from .schemas import (AnalysisObject, AnalyticsAccessOut, AnalyticsAccessStatuse
                       GoalieSeasonsGet, GoalieSprayChartFilters, GoalieTeamSeasonOut, HighlightIn, HighlightOut, HighlightReelIn, HighlightReelUpdateIn,
                       HighlightReelListOut, HighlightUpdateIn, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn,
                       OffensiveZoneEntryOut, PlayerBaseOut, PlayerPositionOut, GoalieIn,
-                      GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, PlayerTeamSeasonOut, SeasonIn,
+                      GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, PlayerTeamSeasonOut,
+                      PlayerTryoutIn, PlayerTryoutOut, PlayerTryoutUpdateIn, SeasonIn,
                       SeasonOut, ShotsIn, ShotsOut, SprayChartFilters,
                       TeamIn, TeamOut, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
 from .models import (Analytics, AnalyticsUserAccess, Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, GoalieTeamSeason, Highlight, HighlightReel, HighlightUserAccess, OffensiveZoneEntry, Player,
-                     PlayerPosition, PlayerSeason, PlayerTeamSeason, PlayerTransaction, Season, ShotType, Shots, Team, TeamAgeGroup, TeamLevel, TeamSeason, GameTypeName,
+                     PlayerPosition, PlayerSeason, PlayerTeamSeason, PlayerTransaction, PlayerTryout, Season, ShotType, Shots, Team, TeamAgeGroup, TeamLevel, TeamSeason, GameTypeName,
                      Turnovers, VideoLibrary)
 from .utils import api_response_templates as resp
 from .utils.db_utils import (create_highlight, form_analytics_out, form_game_dashboard_game_out, form_game_goalie_out, form_game_player_out, form_goalie_out,
@@ -61,12 +62,14 @@ def get_player_positions(request: HttpRequest):
     return positions
 
 @router.get('/goalie/list', response=list[GoalieOut], tags=[ApiDocTags.PLAYER])
-def get_goalies(request: HttpRequest, team_id: int | None = None):
+def get_goalies(request: HttpRequest, team_id: int | None = None, birth_year: int | None = None):
     current_season = get_current_season()
     goalies_out: list[GoalieOut] = []
     goalies = Goalie.objects.filter(player__is_archived=False)
     if team_id is not None:
         goalies = goalies.filter(player__team_id=team_id)
+    if birth_year is not None:
+        goalies = goalies.filter(player__birth_year__year=birth_year)
     for goalie in goalies:
         goalies_out.append(form_goalie_out(goalie, current_season))
     return goalies_out
@@ -110,19 +113,30 @@ def update_goalie(request: HttpRequest, goalie_id: int, data: PatchDict[GoalieIn
         return 403, {"message": "You are not authorized to update this goalie."}
     if is_no_goalie_object(goalie):
         return 403, {"message": "This goalie is used in case of no goalie in net, so it cannot be updated."}
-    old_team_id = goalie.team_id
+
+    if goalie.team is not None:
+        old_team_id = goalie.team.id
+        old_team_name = goalie.team.name
+    else:
+        old_team_id = None
+        old_team_name = "free agent"
+    old_number = goalie.number
+
     for attr, value in data.items():
         setattr(goalie, attr, value)
+
     if is_no_goalie_object(goalie):
         return 400, {"message": "This name is used in case of no goalie in net, so it cannot be set."}
+
     if photo is not None:
         goalie.photo = photo
+
     try:
         with transaction.atomic(using='hockey'):
             if old_team_id != goalie.team_id:
-                PlayerTransaction.objects.create(player=goalie, season=get_current_season(), team=goalie.team,
-                    number=goalie.number, description=f"Transferred to \"{(goalie.team.name if goalie.team is not None else 'free agent')}\"",
-                    date=datetime.datetime.now(datetime.timezone.utc).date())
+                PlayerTransaction.objects.create(player=goalie, season=get_current_season(), team_id=goalie.team_id, previous_team_id=old_team_id,
+                    number=goalie.number, previous_number=old_number,
+                    description=(f"Transferred from \"{old_team_name}\" to \"{(goalie.team.name if goalie.team is not None else 'free agent')}\""))
             goalie.save()
     except IntegrityError:
         return resp.entry_already_exists("Goalie")
@@ -166,12 +180,14 @@ def get_goalie_team_seasons(request: HttpRequest, goalie_id: int, limit: int = 3
         .order_by('-season__start_date')[:limit]
 
 @router.get('/player/list', response=list[PlayerOut], tags=[ApiDocTags.PLAYER])
-def get_players(request: HttpRequest, team_id: int | None = None):
+def get_players(request: HttpRequest, team_id: int | None = None, birth_year: int | None = None):
     current_season = get_current_season()
     players_out: list[PlayerOut] = []
     players = Player.objects.exclude(position__name=GOALIE_POSITION_NAME).filter(is_archived=False)
     if team_id is not None:
         players = players.filter(team_id=team_id)
+    if birth_year is not None:
+        players = players.filter(birth_year__year=birth_year)
     for player in players:
         players_out.append(form_player_out(player, current_season))
     return players_out
@@ -212,19 +228,30 @@ def update_player(request: HttpRequest, player_id: int, data: PatchDict[PlayerIn
     player = get_object_or_404(Player.objects.exclude(position__name=GOALIE_POSITION_NAME), id=player_id)
     if not is_user_coach(request.user, player.team_id):
         return 403, {"message": "You are not authorized to update this player."}
-    old_team_id = player.team_id
+    
+    if player.team is not None:
+        old_team_id = player.team.id
+        old_team_name = player.team.name
+    else:
+        old_team_id = None
+        old_team_name = "free agent"
+    old_number = player.number
+
     for attr, value in data.items():
         setattr(player, attr, value)
+    
     if is_no_goalie_object(player):
         return 400, {"message": "Goalies are not updated through this endpoint."}
+
     if photo is not None:
         player.photo = photo
+
     try:
         with transaction.atomic(using='hockey'):
             if old_team_id != player.team_id:
-                PlayerTransaction.objects.create(player=player, season=get_current_season(), team=player.team,
-                number=player.number, description=f"Transferred to \"{(player.team.name if player.team is not None else 'free agent')}\"",
-                date=datetime.datetime.now(datetime.timezone.utc).date())
+                PlayerTransaction.objects.create(player=player, season=get_current_season(), team_id=player.team_id, previous_team_id=old_team_id,
+                    number=player.number, previous_number=old_number,
+                    description=(f"Transferred from \"{old_team_name}\" to \"{(player.team.name if player.team is not None else 'free agent')}\""))
             player.save()
     except IntegrityError:
         return resp.entry_already_exists("Player")
@@ -1412,6 +1439,57 @@ def update_video_library(request: HttpRequest, video_library_id: int, data: Patc
 def delete_video_library(request: HttpRequest, video_library_id: int):
     video_library = get_object_or_404(VideoLibrary, id=video_library_id)
     video_library.delete()
+    return 204, None
+
+# endregion
+
+# region Player Tryouts
+
+@router.get('/player-tryouts/list', response=list[PlayerTryoutOut],
+    description="Get a list of player tryouts. Either team_id or player_id must be provided.",
+    tags=[ApiDocTags.PLAYER_TRYOUTS])
+def get_player_tryouts(request: HttpRequest, team_id: int | None = None, player_id: int | None = None):
+    if team_id is not None:
+        team = get_object_or_404(Team, id=team_id)
+        player_tryouts = team.tryouts.all()
+    elif player_id is not None:
+        player = get_object_or_404(Player, id=player_id)
+        player_tryouts = player.tryouts.all()
+    else:
+        return 400, {"message": "Either team_id or player_id must be provided."}
+    return [PlayerTryoutOut(id=tryout.id, player_id=tryout.player_id, player_name=tryout.player.first_name + " " + tryout.player.last_name,
+        team_id=tryout.team_id, team_name=tryout.team.name, status=PlayerTryoutStatus(tryout.status), date=tryout.date) for tryout in player_tryouts]
+
+@router.post('/player-tryouts', response={200: ObjectId, 403: Message}, tags=[ApiDocTags.PLAYER_TRYOUTS])
+def add_player_tryout(request: HttpRequest, data: PlayerTryoutIn):
+    team = get_object_or_404(Team, id=data.team_id)
+    if not is_user_coach(request.user, data.team_id):
+        return 403, {"message": "You are not authorized to add a player tryout for this team."}
+    player = get_object_or_404(Player, id=data.player_id)
+    player_tryout = PlayerTryout.objects.create(player=player, team=team, status=data.status)
+    return {"id": player_tryout.id}
+
+@router.get('/player-tryouts/{player_tryout_id}', response=PlayerTryoutOut, tags=[ApiDocTags.PLAYER_TRYOUTS])
+def get_player_tryout(request: HttpRequest, player_tryout_id: int):
+    tryout = get_object_or_404(PlayerTryout, id=player_tryout_id)
+    return PlayerTryoutOut(id=tryout.id, player_id=tryout.player_id, player_name=tryout.player.first_name + " " + tryout.player.last_name,
+        team_id=tryout.team_id, team_name=tryout.team.name, status=PlayerTryoutStatus(tryout.status), date=tryout.date)
+
+@router.patch('/player-tryouts/{player_tryout_id}', response={204: None, 403: Message}, tags=[ApiDocTags.PLAYER_TRYOUTS])
+def update_player_tryout(request: HttpRequest, player_tryout_id: int, data: PlayerTryoutUpdateIn):
+    player_tryout = get_object_or_404(PlayerTryout, id=player_tryout_id)
+    if not is_user_coach(request.user, player_tryout.team_id):
+        return 403, {"message": "You are not authorized to update this player tryout."}
+    player_tryout.status = data.status
+    player_tryout.save()
+    return 204, None
+
+@router.delete('/player-tryouts/{player_tryout_id}', response={204: None, 403: Message}, tags=[ApiDocTags.PLAYER_TRYOUTS])
+def delete_player_tryout(request: HttpRequest, player_tryout_id: int):
+    player_tryout = get_object_or_404(PlayerTryout, id=player_tryout_id)
+    if not is_user_coach(request.user, player_tryout.team_id):
+        return 403, {"message": "You are not authorized to delete this player tryout."}
+    player_tryout.delete()
     return 204, None
 
 # endregion

@@ -6,7 +6,7 @@ from hockey.utils.db_utils import is_no_goalie_object
 
 from .models import (Analytics, Arena, ArenaRink, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameGoalie, GamePeriod,
                      GamePlayer, GameType, Goalie, OffensiveZoneEntry, Player, PlayerPosition, PlayerTransaction,
-                     Season, ShotType, Shots, Team, TeamAgeGroup, TeamLevel, TeamSeason, GameTypeName, Turnovers)
+                     Season, ShotType, Shots, Team, TeamAgeGroup, TeamLevel, TeamSeason, GameTypeName, Turnovers, PlayerTryout)
 
 class ReadOnlyAdminMixin:
     def has_add_permission(self, request, obj=None):
@@ -80,6 +80,8 @@ class GoalieAdmin(admin.ModelAdmin):
     ordering = ['player__last_name']
     search_fields = ['player__last_name', 'player__first_name', 'player__team__name', 'player__number', 'player__is_archived']
 
+    # readonly_fields = ['player__team', 'player__number']
+
     def has_delete_permission(self, request, obj=None):
         if obj and is_no_goalie_object(obj.player):
             return False  # This goalie is used in case of no goalie in net, so it cannot be deleted.
@@ -95,6 +97,8 @@ class PlayerAdmin(admin.ModelAdmin):
     list_display = ['last_name', 'first_name', 'team__name', 'number', 'is_archived']
     ordering = ['last_name']
     search_fields = ['last_name', 'first_name', 'team__name', 'number', 'is_archived']
+
+    readonly_fields = ['team', 'number']
 
     def has_delete_permission(self, request, obj=None):
         if obj and is_no_goalie_object(obj):
@@ -123,10 +127,16 @@ class PlayerPositionAdmin(admin.ModelAdmin):
         return super().has_change_permission(request, obj)
 
 @admin.register(PlayerTransaction)
-class PlayerTransactionAdmin(admin.ModelAdmin):
-    list_display = ['date', 'player__last_name', 'player__first_name', 'team__name']
+class PlayerTransactionAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
+    list_display = ['date', 'player__last_name', 'player__first_name', 'team__name', 'number', 'previous_team__name', 'previous_number']
     ordering = ['-date', 'player__last_name']
-    search_fields = ['date', 'player__last_name', 'player__first_name', 'team__name']
+    search_fields = ['date', 'player__last_name', 'player__first_name', 'team__name', 'number', 'previous_team__name', 'previous_number']
+
+@admin.register(PlayerTryout)
+class PlayerTryoutAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
+    list_display = ['team__name', 'player__last_name', 'player__first_name', 'status', 'date']
+    ordering = ['team__name', 'player__last_name', 'player__first_name', '-date']
+    search_fields = ['team__name', 'player__last_name', 'player__first_name', 'status', 'date']
 
 @admin.register(Season)
 class SeasonAdmin(admin.ModelAdmin):

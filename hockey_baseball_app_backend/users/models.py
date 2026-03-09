@@ -72,4 +72,9 @@ class UserInvitation(models.Model):
 
     class Meta:
         db_table = "user_invitation"
-        unique_together = ('email', 'invited_by', 'invitation_details')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['email', 'invited_by', 'invitation_details'],
+                name='unique_user_invitation'
+            )
+        ]

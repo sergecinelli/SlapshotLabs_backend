@@ -21,6 +21,9 @@ from django.conf.urls.static import static
 from django.http import JsonResponse
 from .api import api
 
+admin.site.site_header = "SLAPSHOT Labs administration"
+admin.site.site_title = "SLAPSHOT Labs administration"
+
 def health_check(request):
     """Health check endpoint for AWS App Runner"""
     return JsonResponse({"status": "healthy", "service": "hockey-app-backend"})

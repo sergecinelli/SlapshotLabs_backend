@@ -3,7 +3,7 @@ from enum import StrEnum
 from ninja import Field, Schema
 
 from hockey.models import Game, Highlight, TeamSeason
-from hockey.utils.constants import EventName, GameStatus, GoalType, HighlightVisibility, RinkZone, get_constant_class_int_description, get_constant_class_str_description
+from hockey.utils.constants import EventName, GameStatus, GoalType, HighlightVisibility, PlayerTryoutStatus, RinkZone, get_constant_class_int_description, get_constant_class_str_description
 from hockey.utils.formulas import get_team_points
 
 # region Common
@@ -207,6 +207,7 @@ class TeamIn(Schema):
     name: str
     abbreviation: str | None = None
     city: str
+    birth_year: int | None = None
 
 class TeamOut(TeamIn):
     id: int
@@ -759,5 +760,26 @@ class AnalysisObject(StrEnum):
     GOALIE = "goalie"
     PLAYER = "player"
     GAME = "game"
+
+# endregion
+
+# region Player Tryouts
+
+class PlayerTryoutIn(Schema):
+    player_id: int
+    team_id: int
+    status: PlayerTryoutStatus
+
+class PlayerTryoutUpdateIn(Schema):
+    status: PlayerTryoutStatus
+
+class PlayerTryoutOut(Schema):
+    id: int
+    player_id: int
+    player_name: str
+    team_id: int
+    team_name: str
+    status: PlayerTryoutStatus
+    date: datetime.date
 
 # endregion

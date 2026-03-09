@@ -1,4 +1,5 @@
 import inspect
+from enum import StrEnum
 from typing import Any, Final, Type
 
 
@@ -14,6 +15,12 @@ class IdName:
     def __init__(self, id: int, name: str):
         self.id = id
         self.name = name
+
+class PlayerTryoutStatus(StrEnum):
+    """\"Trying Out\", \"Made Team\" or \"Cut\"."""
+    TRYING_OUT = "Trying Out"
+    MADE_TEAM = "Made Team"
+    CUT = "Cut"
 
 class GameStatus:
     """\"Not Started\", \"Game in Progress\" or \"Game Over\"."""
@@ -77,3 +84,4 @@ class ApiDocTags:
     ANALYTICS: Final[str] = "Hockey - Analytics"
     HIGHLIGHT_REEL: Final[str] = "Hockey - Highlight Reel"
     VIDEO_LIBRARY: Final[str] = "Hockey - Video Library"
+    PLAYER_TRYOUTS: Final[str] = "Hockey - Tryout"
