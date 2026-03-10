@@ -27,7 +27,7 @@ from hockey.utils.constants import (GOALIE_POSITION_NAME, NO_GOALIE_FIRST_NAME, 
 from hockey.utils.event_analysis_serializer import serialize_game, serialize_game_event
 from hockey.utils.formulas import get_team_points
 from users.models import UserInvitation
-from users.utils.roles import is_user_admin, is_user_coach
+from users.utils.roles import is_user_admin, is_user_coach, is_user_coach_any
 from users.utils.emails_send import invite_users_to_website
 
 from .schemas import (AnalysisObject, AnalyticsAccessOut, AnalyticsAccessStatuses, AnalyticsIn, AnalyticsOut, ArenaOut, ArenaRinkOut, ArenaRinkExtendedOut, DefensiveZoneExitIn, DefensiveZoneExitOut, GameBannerOut, GameDashboardOut,
@@ -1447,23 +1447,28 @@ def delete_video_library(request: HttpRequest, video_library_id: int):
 # region Player Tryouts
 
 @router.get('/player-tryouts/list/{player_type}', response={200: list[PlayerTryoutOut], 400: Message},
-    description="Get a list of player/goalie tryouts. Either team_id or player_id must be provided.",
+    description="Get a list of player/goalie tryouts.",
     tags=[ApiDocTags.PLAYER_TRYOUTS])
 def get_player_tryouts(request: HttpRequest, player_type: Literal["players", "goalies"], team_id: int | None = None, player_id: int | None = None):
+    player_tryouts = PlayerTryout.objects
     if team_id is not None:
-        team = get_object_or_404(Team, id=team_id)
-        player_tryouts = team.tryouts.all()
+        player_tryouts = player_tryouts.filter(team_id=team_id)
         if not is_user_coach(request.user, team_id):
             player_tryouts = player_tryouts.filter(user_id=request.user.id)
-    elif player_id is not None:
+    if player_id is not None:
         player = get_object_or_404(Player, id=player_id)
-        player_tryouts = player.tryouts.all()
+        player_tryouts = player_tryouts.filter(player=player)
         if not is_user_coach(request.user, player.team_id):
             player_tryouts = player_tryouts.filter(user_id=request.user.id)
         else:
+            player_tryouts = player_tryouts.filter(Q(user_id=request.user.id) | Q(team_id=player.team_id))
+    if team_id is None and player_id is None:
+        if is_user_admin(request.user):
+            pass
+        elif is_user_coach_any(request.user):
             player_tryouts = player_tryouts.filter(Q(user_id=request.user.id) | Q(team_id=request.user.team_id))
-    else:
-        return 400, {"message": "Either team_id or player_id must be provided."}
+        else:
+            player_tryouts = player_tryouts.filter(user_id=request.user.id)
 
     if player_type == "players":
         player_tryouts = player_tryouts.exclude(player__position__name=GOALIE_POSITION_NAME)

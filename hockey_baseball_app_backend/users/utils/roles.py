@@ -21,7 +21,12 @@ def is_user_admin(user) -> bool:
     return user.role == Role.ADMIN.id
 
 def is_user_coach(user, team_id: int) -> bool:
+    """Check if the user is a coach for a specific team or admin."""
     return is_user_admin(user) or (user.role == Role.COACH.id and user.team_id == team_id)
+
+def is_user_coach_any(user) -> bool:
+    """Check if the user is a coach for any team or admin."""
+    return is_user_admin(user) or (user.role == Role.COACH.id and user.team_id is not None)
 
 def is_user_player(user) -> bool:
     return user.role <= Role.PLAYER.id
