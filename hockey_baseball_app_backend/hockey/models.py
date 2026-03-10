@@ -281,18 +281,39 @@ class PlayerTransaction(models.Model):
 
     class Meta:
         db_table = "player_transactions"
+    
 
 class PlayerTryout(models.Model):
-    player = models.ForeignKey(Player, related_name='tryouts', on_delete=models.CASCADE)
-    team = models.ForeignKey(Team, related_name='tryouts', on_delete=models.CASCADE)
+    player = models.ForeignKey(Player, related_name='tryouts', on_delete=models.CASCADE, db_index=True)
+    team = models.ForeignKey(Team, related_name='tryouts', on_delete=models.CASCADE, db_index=True)
     status = models.CharField(max_length=50, choices=get_constant_class_str_choices(PlayerTryoutStatus))
+    changed_by = models.IntegerField()
+    changed_at = models.DateTimeField()
+    note = models.TextField(null=True, blank=True)
     date = models.DateField(auto_now_add=True)
+    user_id = models.IntegerField()
 
     def __str__(self):
         return f"{self.player.first_name} {self.player.last_name} - {self.team.name}"
 
     class Meta:
         db_table = "player_tryouts"
+        constraints = [
+            models.UniqueConstraint(fields=['player', 'team'], name='unique_player_tryout')
+        ]
+
+class PlayerTryoutStatusHistory(models.Model):
+    player_tryout = models.ForeignKey(PlayerTryout, related_name='status_history', on_delete=models.CASCADE)
+    status = models.CharField(max_length=50, choices=get_constant_class_str_choices(PlayerTryoutStatus))
+    note = models.TextField(null=True, blank=True)
+    date_time = models.DateTimeField(auto_now_add=True)
+    user_id = models.IntegerField()
+
+    def __str__(self):
+        return f"{self.player_tryout.player.first_name} {self.player_tryout.player.last_name} - {self.player_tryout.team.name} - {self.date_time} - {self.status}"
+
+    class Meta:
+        db_table = "player_tryout_status_history"
 
 class Goalie(models.Model):
 
@@ -743,8 +764,8 @@ class Analytics(models.Model):
     date = models.DateField()
     time = models.TimeField()
     team = models.ForeignKey(Team, on_delete=models.CASCADE, null=True, blank=True)
-    player = models.ForeignKey(Player, on_delete=models.CASCADE, null=True, blank=True)
-    game = models.ForeignKey(Game, on_delete=models.CASCADE, null=True, blank=True)
+    player = models.ForeignKey(Player, related_name='analytics', on_delete=models.CASCADE, null=True, blank=True, db_index=True)
+    game = models.ForeignKey(Game, related_name='analytics', on_delete=models.CASCADE, null=True, blank=True, db_index=True)
     
     user_id = models.IntegerField()
     """User ID reference. Not a foreign key because the users database is separate. Use `User.objects.using('default').get(id=user_id)` to access the user."""

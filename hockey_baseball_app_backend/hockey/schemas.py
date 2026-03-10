@@ -769,17 +769,43 @@ class PlayerTryoutIn(Schema):
     player_id: int
     team_id: int
     status: PlayerTryoutStatus
+    note: str | None = None
 
 class PlayerTryoutUpdateIn(Schema):
     status: PlayerTryoutStatus
+    note: str | None = None
+
+class PlayerTryoutPlayerOut(Schema):
+    id: int
+    first_name: str
+    last_name: str
+    number: int
+    position_name: str
+    shoots: str
+    has_analytics: bool
+
+class PlayerTryoutUpdateUserOut(Schema):
+    id: int
+    first_name: str
+    last_name: str
 
 class PlayerTryoutOut(Schema):
     id: int
-    player_id: int
-    player_name: str
     team_id: int
     team_name: str
     status: PlayerTryoutStatus
+    changed_by: PlayerTryoutUpdateUserOut
+    changed_at: datetime.datetime
+    note: str | None = None
     date: datetime.date
+    user: PlayerTryoutUpdateUserOut
+    player: PlayerTryoutPlayerOut
+
+class PlayerTryoutStatusHistoryOut(Schema):
+    id: int
+    status: PlayerTryoutStatus
+    note: str | None = None
+    date_time: datetime.datetime
+    user: PlayerTryoutUpdateUserOut
 
 # endregion

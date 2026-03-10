@@ -2,6 +2,7 @@ import datetime
 import os
 import re
 from types import SimpleNamespace
+from typing import Literal
 from django.conf import settings
 from django.db.models import Q
 from django.db.models.deletion import RestrictedError
@@ -37,12 +38,12 @@ from .schemas import (AnalysisObject, AnalyticsAccessOut, AnalyticsAccessStatuse
                       HighlightReelListOut, HighlightUpdateIn, ObjectIdName, Message, ObjectId, OffensiveZoneEntryIn,
                       OffensiveZoneEntryOut, PlayerBaseOut, PlayerPositionOut, GoalieIn,
                       GoalieOut, PlayerIn, PlayerOut, PlayerSeasonOut, PlayerSeasonsGet, PlayerSprayChartFilters, PlayerTeamSeasonOut,
-                      PlayerTryoutIn, PlayerTryoutOut, PlayerTryoutUpdateIn, SeasonIn,
+                      PlayerTryoutIn, PlayerTryoutOut, PlayerTryoutPlayerOut, PlayerTryoutStatusHistoryOut, PlayerTryoutUpdateIn, PlayerTryoutUpdateUserOut, SeasonIn,
                       SeasonOut, ShotsIn, ShotsOut, SprayChartFilters,
                       TeamIn, TeamOut, TeamSeasonOut, TurnoversIn, TurnoversOut, VideoLibraryIn, VideoLibraryOut)
 from .models import (Analytics, AnalyticsUserAccess, Arena, ArenaRink, CustomEvents, DefensiveZoneExit, Division, Game, GameEventName, GameEvents, GameEventsAnalysisQueue,
                      GameGoalie, GamePeriod, GamePlayer, GameType, Goalie, GoalieSeason, GoalieTeamSeason, Highlight, HighlightReel, HighlightUserAccess, OffensiveZoneEntry, Player,
-                     PlayerPosition, PlayerSeason, PlayerTeamSeason, PlayerTransaction, PlayerTryout, Season, ShotType, Shots, Team, TeamAgeGroup, TeamLevel, TeamSeason, GameTypeName,
+                     PlayerPosition, PlayerSeason, PlayerTeamSeason, PlayerTransaction, PlayerTryout, PlayerTryoutStatusHistory, Season, ShotType, Shots, Team, TeamAgeGroup, TeamLevel, TeamSeason, GameTypeName,
                      Turnovers, VideoLibrary)
 from .utils import api_response_templates as resp
 from .utils.db_utils import (create_highlight, form_analytics_out, form_game_dashboard_game_out, form_game_goalie_out, form_game_player_out, form_goalie_out,
@@ -1445,49 +1446,133 @@ def delete_video_library(request: HttpRequest, video_library_id: int):
 
 # region Player Tryouts
 
-@router.get('/player-tryouts/list', response=list[PlayerTryoutOut],
-    description="Get a list of player tryouts. Either team_id or player_id must be provided.",
+@router.get('/player-tryouts/list/{player_type}', response={200: list[PlayerTryoutOut], 400: Message},
+    description="Get a list of player/goalie tryouts. Either team_id or player_id must be provided.",
     tags=[ApiDocTags.PLAYER_TRYOUTS])
-def get_player_tryouts(request: HttpRequest, team_id: int | None = None, player_id: int | None = None):
+def get_player_tryouts(request: HttpRequest, player_type: Literal["players", "goalies"], team_id: int | None = None, player_id: int | None = None):
     if team_id is not None:
         team = get_object_or_404(Team, id=team_id)
         player_tryouts = team.tryouts.all()
+        if not is_user_coach(request.user, team_id):
+            player_tryouts = player_tryouts.filter(user_id=request.user.id)
     elif player_id is not None:
         player = get_object_or_404(Player, id=player_id)
         player_tryouts = player.tryouts.all()
+        if not is_user_coach(request.user, player.team_id):
+            player_tryouts = player_tryouts.filter(user_id=request.user.id)
+        else:
+            player_tryouts = player_tryouts.filter(Q(user_id=request.user.id) | Q(team_id=request.user.team_id))
     else:
         return 400, {"message": "Either team_id or player_id must be provided."}
-    return [PlayerTryoutOut(id=tryout.id, player_id=tryout.player_id, player_name=tryout.player.first_name + " " + tryout.player.last_name,
-        team_id=tryout.team_id, team_name=tryout.team.name, status=PlayerTryoutStatus(tryout.status), date=tryout.date) for tryout in player_tryouts]
 
-@router.post('/player-tryouts', response={200: ObjectId, 403: Message}, tags=[ApiDocTags.PLAYER_TRYOUTS])
+    if player_type == "players":
+        player_tryouts = player_tryouts.exclude(player__position__name=GOALIE_POSITION_NAME)
+    elif player_type == "goalies":
+        player_tryouts = player_tryouts.filter(player__position__name=GOALIE_POSITION_NAME)
+    else:
+        return 400, {"message": "Invalid player type."}
+
+    player_tryouts = player_tryouts.order_by('-date').all()
+
+    got_users = {}
+    got_players_have_analysis = {}
+    player_tryouts_out = []
+
+    for tryout in player_tryouts:
+
+        if tryout.user_id not in got_users:
+            user_db = User.objects.using('default').get(id=tryout.user_id)
+            user = PlayerTryoutUpdateUserOut(id=user_db.id, first_name=user_db.first_name, last_name=user_db.last_name)
+            got_users[tryout.user_id] = user
+        if tryout.changed_by not in got_users:
+            changed_by_db = User.objects.using('default').get(id=tryout.changed_by)
+            changed_by = PlayerTryoutUpdateUserOut(id=changed_by_db.id, first_name=changed_by_db.first_name, last_name=changed_by_db.last_name)
+            got_users[tryout.changed_by] = changed_by
+
+        if tryout.player_id not in got_players_have_analysis:
+            got_players_have_analysis[tryout.player_id] = (tryout.player.analytics.count() > 0)
+            
+        player_tryouts_out.append(PlayerTryoutOut(id=tryout.id,
+            changed_by=got_users[tryout.changed_by], changed_at=tryout.changed_at, note=tryout.note, user=got_users[tryout.user_id],
+            player=PlayerTryoutPlayerOut(id=tryout.player_id, first_name=tryout.player.first_name, last_name=tryout.player.last_name,
+                number=tryout.player.number, position_name=tryout.player.position.name, shoots=tryout.player.shoots,
+                has_analytics=got_players_have_analysis[tryout.player_id]),
+            team_id=tryout.team_id, team_name=tryout.team.name, status=PlayerTryoutStatus(tryout.status), date=tryout.date))
+            
+    return player_tryouts_out
+
+@router.post('/player-tryouts', response={200: ObjectId, 400: Message}, tags=[ApiDocTags.PLAYER_TRYOUTS])
 def add_player_tryout(request: HttpRequest, data: PlayerTryoutIn):
     team = get_object_or_404(Team, id=data.team_id)
-    if not is_user_coach(request.user, data.team_id):
-        return 403, {"message": "You are not authorized to add a player tryout for this team."}
     player = get_object_or_404(Player, id=data.player_id)
-    player_tryout = PlayerTryout.objects.create(player=player, team=team, status=data.status)
+    try:
+        with transaction.atomic(using='hockey'):
+            player_tryout = PlayerTryout.objects.create(player=player, team=team, status=data.status,
+                changed_by=request.user.id, changed_at=datetime.datetime.now(datetime.timezone.utc), note=data.note, user_id=request.user.id)
+            PlayerTryoutStatusHistory.objects.create(player_tryout=player_tryout, status=data.status, note=data.note, user_id=request.user.id)
+    except IntegrityError as e:
+        return resp.entry_already_exists("Player Tryout")
+    except ValueError as e:
+        return 400, {"message": str(e)}
     return {"id": player_tryout.id}
 
-@router.get('/player-tryouts/{player_tryout_id}', response=PlayerTryoutOut, tags=[ApiDocTags.PLAYER_TRYOUTS])
+@router.get('/player-tryouts/{player_tryout_id}', response={200: PlayerTryoutOut, 403: Message}, tags=[ApiDocTags.PLAYER_TRYOUTS])
 def get_player_tryout(request: HttpRequest, player_tryout_id: int):
     tryout = get_object_or_404(PlayerTryout, id=player_tryout_id)
-    return PlayerTryoutOut(id=tryout.id, player_id=tryout.player_id, player_name=tryout.player.first_name + " " + tryout.player.last_name,
+    if not is_user_coach(request.user, tryout.team_id) and tryout.user_id != request.user.id:
+        return 403, {"message": "You are not authorized to view this player tryout."}
+    user_db = User.objects.using('default').get(id=tryout.user_id)
+    user = PlayerTryoutUpdateUserOut(id=user_db.id, first_name=user_db.first_name, last_name=user_db.last_name)
+    if tryout.changed_by == tryout.user_id:
+        changed_by = user
+    else:
+        changed_by_db = User.objects.using('default').get(id=tryout.changed_by)
+        changed_by = PlayerTryoutUpdateUserOut(id=changed_by_db.id, first_name=changed_by_db.first_name, last_name=changed_by_db.last_name)
+    return PlayerTryoutOut(id=tryout.id, changed_by=changed_by, changed_at=tryout.changed_at, note=tryout.note, user=user,
+        player=PlayerTryoutPlayerOut(id=tryout.player_id, first_name=tryout.player.first_name, last_name=tryout.player.last_name,
+            number=tryout.player.number, position_name=tryout.player.position.name, shoots=tryout.player.shoots,
+            has_analytics=(tryout.player.analytics.count() > 0)),
         team_id=tryout.team_id, team_name=tryout.team.name, status=PlayerTryoutStatus(tryout.status), date=tryout.date)
 
-@router.patch('/player-tryouts/{player_tryout_id}', response={204: None, 403: Message}, tags=[ApiDocTags.PLAYER_TRYOUTS])
+@router.get('/player-tryouts/{player_tryout_id}/status-history', response={200: list[PlayerTryoutStatusHistoryOut], 403: Message}, tags=[ApiDocTags.PLAYER_TRYOUTS])
+def get_player_tryout_status_history(request: HttpRequest, player_tryout_id: int):
+    tryout = get_object_or_404(PlayerTryout, id=player_tryout_id)
+    if not is_user_coach(request.user, tryout.team_id) and tryout.user_id != request.user.id:
+        return 403, {"message": "You are not authorized to view the status history of this player tryout."}
+    got_users = {}
+    status_history_out = []
+    for history in tryout.status_history.order_by('date_time').all():
+        if history.user_id not in got_users:
+            user = User.objects.using('default').get(id=history.user_id)
+            got_users[history.user_id] = PlayerTryoutUpdateUserOut(id=user.id, first_name=user.first_name, last_name=user.last_name)
+        status_history_out.append(PlayerTryoutStatusHistoryOut(id=history.id, status=history.status, note=history.note,
+            date_time=history.date_time, user=got_users[history.user_id]))
+    return status_history_out
+
+@router.put('/player-tryouts/{player_tryout_id}', response={204: None, 400: Message, 403: Message}, tags=[ApiDocTags.PLAYER_TRYOUTS])
 def update_player_tryout(request: HttpRequest, player_tryout_id: int, data: PlayerTryoutUpdateIn):
-    player_tryout = get_object_or_404(PlayerTryout, id=player_tryout_id)
-    if not is_user_coach(request.user, player_tryout.team_id):
-        return 403, {"message": "You are not authorized to update this player tryout."}
-    player_tryout.status = data.status
-    player_tryout.save()
+    try:
+        with transaction.atomic(using='hockey'):
+            player_tryout = get_object_or_404(PlayerTryout, id=player_tryout_id)
+            if not is_user_coach(request.user, player_tryout.team_id) and player_tryout.user_id != request.user.id:
+                return 403, {"message": "You are not authorized to update this player tryout."}
+            player_tryout.status = data.status
+            player_tryout.changed_by = request.user.id
+            player_tryout.changed_at = datetime.datetime.now(datetime.timezone.utc)
+            player_tryout.user_id = request.user.id
+            player_tryout.note = data.note
+            player_tryout.save()
+            PlayerTryoutStatusHistory.objects.create(player_tryout=player_tryout, status=data.status, note=data.note, user_id=request.user.id)
+    except IntegrityError as e:
+        return resp.entry_already_exists("Player Tryout")
+    except ValueError as e:
+        return 400, {"message": str(e)}
     return 204, None
 
 @router.delete('/player-tryouts/{player_tryout_id}', response={204: None, 403: Message}, tags=[ApiDocTags.PLAYER_TRYOUTS])
 def delete_player_tryout(request: HttpRequest, player_tryout_id: int):
     player_tryout = get_object_or_404(PlayerTryout, id=player_tryout_id)
-    if not is_user_coach(request.user, player_tryout.team_id):
+    if not is_user_coach(request.user, player_tryout.team_id) and player_tryout.user_id != request.user.id:
         return 403, {"message": "You are not authorized to delete this player tryout."}
     player_tryout.delete()
     return 204, None
