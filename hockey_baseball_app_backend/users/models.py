@@ -24,6 +24,9 @@ class CustomUser(AbstractUser):
     role = models.IntegerField("Website role", choices=get_constant_class_int_choices(Role), default=Role.PLAYER.id)
     team_id = models.IntegerField("Team", null=True, blank=True)
 
+    gamesheet_seasonid = models.TextField("Gamesheet season ID", null=True, blank=True)
+    """ID of the season in the Gamesheet iframe."""
+
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["first_name", "last_name"]
 

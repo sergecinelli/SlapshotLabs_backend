@@ -24,6 +24,7 @@ class UserOut(Schema):
     role_id: int = Field(..., description=get_constant_class_int_description(Role))
     role_name: str = Field(..., description=get_constant_class_str_description(Role))
     team_id: int | None = None
+    gamesheet_seasonid: str | None = None
 
     @staticmethod
     def resolve_role_id(obj) -> int:
@@ -49,6 +50,7 @@ class UserEdit(Schema):
     street: Optional[str] = None
     postal_code: Optional[str] = None
     password: Optional[str] = None
+    gamesheet_seasonid: Optional[str] = None
 
 class UserSearch(Schema):
     ids: Optional[list[int]] = None

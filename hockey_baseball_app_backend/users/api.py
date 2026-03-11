@@ -1,6 +1,6 @@
 import datetime
 from typing import Union
-from ninja import Router
+from ninja import PatchDict, Router
 from ninja.security import SessionAuth
 from django.db import IntegrityError
 from django.conf import settings
@@ -107,35 +107,27 @@ def search_users(request: HttpRequest, data: UserSearch):
     return users.all()
 
 @router.patch('/edit', auth=SessionAuth(), response={204: None, 400: Message})
-def edit_user(request: HttpRequest, data: UserEdit):
+def edit_user(request: HttpRequest, data: PatchDict[UserEdit]):
     user = request.user
 
-    if data.email is not None:
-        user.email = data.email
-    if data.first_name is not None:
-        user.first_name = data.first_name
-    if data.last_name is not None:
-        user.last_name = data.last_name
-    if data.country is not None:
-        user.country = data.country
-    if data.region is not None:
-        user.region = data.region
-    if data.city is not None:
-        user.city = data.city
-    if data.street is not None:
-        user.street = data.street
-    if data.postal_code is not None:
-        user.postal_code = data.postal_code
-    if data.password is not None:
+    if data.get('password') is not None:
         try:
-            password_validation.validate_password(data.password)
+            password_validation.validate_password(data['password'])
         except ValidationError:
             return 400, {'message': 'Password is too simple or short.'}
-        user.set_password(data.password)
+        user.set_password(data['password'])
         update_session_auth_hash(request, user)
 
-    user.save()
-
+    for attr, value in data.items():
+        if attr == 'password':
+            continue
+        setattr(user, attr, value)
+    
+    try:
+        user.save()
+    except IntegrityError:
+        return 400, {'message': 'Email already in use or some required fields are missing.'}
+    
     return 204, None
 
 @router.get('/invitations/{invitation_token}', auth=None, response={200: Message, 401: Message, 403: Message, 404: Message})
