@@ -802,9 +802,18 @@ def get_game_live_data(request: HttpRequest, game_id: int):
                            away_turnovers=game.away_turnovers,
                            events=game.gameevents_set.order_by("period__order", "-time").all())
 
-@router.get('/game/{game_id}/events', response=list[GameEventOut], tags=[ApiDocTags.GAME])
-def get_game_events(request: HttpRequest, game_id: int):
-    game_events = GameEvents.objects.filter(game_id=game_id).order_by("period__order", "-time").all()
+@router.get('/game/{game_id}/events', response={200: list[GameEventOut], 400: Message},
+            description="Get game events for a given game and optional player IDs (comma separated list of player IDs).",
+            tags=[ApiDocTags.GAME, ApiDocTags.GAME_EVENT])
+def get_game_events(request: HttpRequest, game_id: int, player_ids: str | None = None):
+    game_events = GameEvents.objects.filter(game_id=game_id)
+    if player_ids is not None:
+        try:
+            player_ids_list = [ int(player_id.strip()) for player_id in player_ids.split(',') ]
+        except ValueError:
+            return 400, {"message": "Invalid player IDs format."}
+        game_events = game_events.filter(Q(player_id__in=player_ids_list) | Q(player_2_id__in=player_ids_list) | Q(goalie_id__in=player_ids_list))
+    game_events = game_events.order_by("period__order", "-time").all()
     return game_events
 
 @router.post('/game/{game_id}/spray-chart', response=list[GameEventOut], tags=[ApiDocTags.GAME, ApiDocTags.SPRAY_CHART])
