@@ -46,6 +46,7 @@ class GoalieIn(Schema):
 
 class GoalieOut(GoalieIn):
     id: int = Field(...)
+    team_name: str | None
     shots_on_goal: int
     saves: int
     goals_against: int
@@ -123,6 +124,7 @@ class PlayerIn(Schema):
 
 class PlayerOut(PlayerIn):
     id: int
+    team_name: str | None
     shots_on_goal: int
     games_played: int
     goals: int
